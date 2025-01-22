@@ -200,7 +200,7 @@ function Login() {
 
     try {
       await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      navigate('/userdevice');
+      navigate('/');
     } catch (error) {
       console.error("Login error:", error);
       setError('Invalid email or password');

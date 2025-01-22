@@ -1,8 +1,10 @@
 // src/components/DeviceSettings.js
-import React, { useEffect, useState } from 'react'; // เพิ่ม useState
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const Container = styled.div`
   background-color: #1a1b2e;
@@ -139,121 +141,145 @@ const SaveButton = styled.button`
   }
 `;
 
+const LoadingOverlay = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-size: 1.2rem;
+  height: 100vh;
+`;
+
 function DeviceSettings() {
     const navigate = useNavigate();
     const { id } = useParams();
     const [deviceData, setDeviceData] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
     
-    // ข้อมูล mock สำหรับอุปกรณ์
-    const devices = {
-      1: {
-        name: 'Device 1',
-        location: 'ICT Mahidol',
-        noiseThreshold: 80,
-        samplingPeriod: 3,
-        recordDuration: 1,
-        enabled: false
-      },
-      2: {
-        name: 'Device 2',
-        location: '7-11',
-        noiseThreshold: 75,
-        samplingPeriod: 2,
-        recordDuration: 1,
-        enabled: true
-      }
-    };
-  
-    useEffect(() => {
-      // ดึงข้อมูลอุปกรณ์ตาม id ที่ได้จาก URL
-      const device = devices[id];
-      if (device) {
-        setDeviceData(device);
-      }
-    }, [id]);
-  
     const [enabled, setEnabled] = useState(false);
     const [noiseThreshold, setNoiseThreshold] = useState(80);
     const [samplingPeriod, setSamplingPeriod] = useState(3);
     const [recordDuration, setRecordDuration] = useState(1);
-  
+
     useEffect(() => {
-      if (deviceData) {
-        setEnabled(deviceData.enabled);
-        setNoiseThreshold(deviceData.noiseThreshold);
-        setSamplingPeriod(deviceData.samplingPeriod);
-        setRecordDuration(deviceData.recordDuration);
-      }
-    }, [deviceData]);
-  
-    const handleSave = () => {
-      // บันทึกการตั้งค่า
-      navigate('/device-management');
+        const fetchDevice = async () => {
+            try {
+                const docRef = doc(db, 'devices', id);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setDeviceData(data);
+                    setEnabled(data.status === 'active');
+                    setNoiseThreshold(data.noiseThreshold || 80);
+                    setSamplingPeriod(data.samplingPeriod || 3);
+                    setRecordDuration(data.recordDuration || 1);
+                }
+            } catch (error) {
+                console.error('Error fetching device:', error);
+                alert('Failed to load device settings');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchDevice();
+    }, [id]);
+
+    const handleSave = async () => {
+        try {
+            const docRef = doc(db, 'devices', id);
+            await updateDoc(docRef, {
+                status: enabled ? 'active' : 'inactive',
+                noiseThreshold,
+                samplingPeriod,
+                recordDuration,
+                lastUpdated: new Date()
+            });
+            navigate('/devices');
+        } catch (error) {
+            console.error('Error updating device:', error);
+            alert('Failed to save settings');
+        }
     };
-  
-    if (!deviceData) return null;
-  
+
+    const handleRemoveDevice = async () => {
+        if (window.confirm('Are you sure you want to remove this device?')) {
+            try {
+                await deleteDoc(doc(db, 'devices', id));
+                navigate('/devices');
+            } catch (error) {
+                console.error('Error removing device:', error);
+                alert('Failed to remove device');
+            }
+        }
+    };
+
+    if (isLoading) return <LoadingOverlay>Loading...</LoadingOverlay>;
+    if (!deviceData) return <Container>Device not found</Container>;
+
     return (
-      <Container>
-        <DeviceHeader>
-          <DeviceTitle>{deviceData.name}</DeviceTitle>
-          <Location>Location: {deviceData.location}</Location>
-        </DeviceHeader>
-  
-        <SettingsContainer>
-          <SettingGroup>
-            <SettingLabel>Disable-Enable device</SettingLabel>
-            <Toggle>
-              <input 
-                type="checkbox" 
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-              />
-              <span />
-            </Toggle>
-          </SettingGroup>
-  
-          <SettingGroup>
-            <SettingLabel>Noise threshold</SettingLabel>
-            <Slider
-              type="range"
-              min="0"
-              max="100"
-              value={noiseThreshold}
-              onChange={(e) => setNoiseThreshold(e.target.value)}
-            />
-            <Value>{noiseThreshold} dB</Value>
-          </SettingGroup>
-  
-          <SettingGroup>
-            <SettingLabel>Noise sampling period</SettingLabel>
-            <Slider
-              type="range"
-              min="1"
-              max="10"
-              value={samplingPeriod}
-              onChange={(e) => setSamplingPeriod(e.target.value)}
-            />
-            <Value>{samplingPeriod} min</Value>
-          </SettingGroup>
-  
-          <SettingGroup>
-            <SettingLabel>Record duration</SettingLabel>
-            <Slider
-              type="range"
-              min="1"
-              max="5"
-              value={recordDuration}
-              onChange={(e) => setRecordDuration(e.target.value)}
-            />
-            <Value>{recordDuration} min</Value>
-          </SettingGroup>
-  
-          <RemoveButton>Remove device</RemoveButton>
-          <SaveButton onClick={handleSave}>Save</SaveButton>
-        </SettingsContainer>
-      </Container>
+        <Container>
+            <DeviceHeader>
+                <DeviceTitle>{deviceData.deviceName}</DeviceTitle>
+                <Location>Location: {deviceData.location}</Location>
+            </DeviceHeader>
+
+            <SettingsContainer>
+                <SettingGroup>
+                    <SettingLabel>Device Status</SettingLabel>
+                    <Toggle>
+                        <input 
+                            type="checkbox" 
+                            checked={enabled}
+                            onChange={(e) => setEnabled(e.target.checked)}
+                        />
+                        <span />
+                    </Toggle>
+                    <Value>{enabled ? 'Active' : 'Inactive'}</Value>
+                </SettingGroup>
+
+                <SettingGroup>
+                    <SettingLabel>Noise threshold</SettingLabel>
+                    <Slider
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={noiseThreshold}
+                        onChange={(e) => setNoiseThreshold(e.target.value)}
+                    />
+                    <Value>{noiseThreshold} dB</Value>
+                </SettingGroup>
+
+                <SettingGroup>
+                    <SettingLabel>Noise sampling period</SettingLabel>
+                    <Slider
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={samplingPeriod}
+                        onChange={(e) => setSamplingPeriod(e.target.value)}
+                    />
+                    <Value>{samplingPeriod} min</Value>
+                </SettingGroup>
+
+                <SettingGroup>
+                    <SettingLabel>Record duration</SettingLabel>
+                    <Slider
+                        type="range"
+                        min="1"
+                        max="5"
+                        value={recordDuration}
+                        onChange={(e) => setRecordDuration(e.target.value)}
+                    />
+                    <Value>{recordDuration} min</Value>
+                </SettingGroup>
+
+                <RemoveButton onClick={handleRemoveDevice}>Remove device</RemoveButton>
+                <SaveButton onClick={handleSave}>Save</SaveButton>
+            </SettingsContainer>
+        </Container>
     );
-  }
-  
-  export default DeviceSettings;
+}
+
+export default DeviceSettings;
