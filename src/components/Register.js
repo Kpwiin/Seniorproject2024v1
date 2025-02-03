@@ -4,7 +4,8 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase'; // Import db for Firestore
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore'; // Use setDoc instead of addDoc for specific document ID
+import { ADMIN_EMAILS } from '../config/adminConfig';
 
 // Styled components
 const Container = styled.div`
@@ -26,9 +27,9 @@ const Logo = styled.div`
   display: flex;
   align-items: center;
   margin-bottom: 2rem;
-  
+
   span {
-    color: #4169E1;
+    color: #4169e1;
     font-size: 2rem;
     font-weight: bold;
     margin-left: 1rem;
@@ -38,16 +39,16 @@ const Logo = styled.div`
 const LogoIcon = styled.div`
   width: 40px;
   height: 40px;
-  border: 2px solid #4169E1;
+  border: 2px solid #4169e1;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   div {
     width: 24px;
     height: 24px;
-    background-color: #4169E1;
+    background-color: #4169e1;
     border-radius: 50%;
   }
 `;
@@ -58,7 +59,7 @@ const FormContainer = styled.form`
 `;
 
 const Title = styled.h1`
-  color: #4169E1;
+  color: #4169e1;
   text-align: center;
   font-size: 2rem;
   margin-bottom: 2rem;
@@ -72,7 +73,7 @@ const Input = styled.input`
   width: 100%;
   padding: 1rem;
   border-radius: 8px;
-  border: 1px solid #4169E1;
+  border: 1px solid #4169e1;
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
 
@@ -89,7 +90,7 @@ const Input = styled.input`
 const Button = styled.button`
   width: 100%;
   padding: 1rem;
-  background-color: #4169E1;
+  background-color: #4169e1;
   color: white;
   border: none;
   border-radius: 8px;
@@ -164,31 +165,39 @@ function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+  
     if (!validateForm()) return;
-
+  
     setIsLoading(true);
-
+  
     try {
-      // Register user with Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
-
-      // Update user profile
+  
       await updateProfile(userCredential.user, {
         displayName: formData.username
       });
-
-      // Save user data in Firestore
-      await addDoc(collection(db, 'UserInfo'), {
+  
+      const userId = userCredential.user.uid;
+      
+      // ตรวจสอบว่า email อยู่ใน admin list หรือไม่
+      const isAdmin = ADMIN_EMAILS.includes(formData.email.toLowerCase());
+      
+      await setDoc(doc(db, 'UserInfo', userId), {
         email: formData.email,
-        username: formData.username
+        username: formData.username,
+        role: isAdmin ? 'admin' : 'user'
       });
-
-      navigate('/dashboard');
+  
+      // นำทางไปยังหน้าที่เหมาะสมตาม role
+      if (isAdmin) {
+        navigate('/dashboard');
+      } else {
+        navigate('/');
+      }
     } catch (error) {
       console.error('Registration error:', error);
       setError(error.message);

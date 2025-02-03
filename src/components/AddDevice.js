@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
@@ -40,8 +40,6 @@ const Input = styled.input`
   border: none;
   background-color: white;
   margin-bottom: 0.5rem;
-  pointer-events: ${(props) => (props.readOnly ? 'none' : 'auto')};
-  color: ${(props) => (props.readOnly ? '#999' : 'black')};
 
   &::placeholder {
     color: #999;
@@ -69,26 +67,6 @@ const Button = styled.button`
   }
 `;
 
-const LoadingOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  z-index: 1000;
-`;
-
-const ErrorMessage = styled.div`
-  color: #ff4444;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-`;
-
 const MapContainer = styled.div`
   height: 400px;
   width: 100%;
@@ -105,43 +83,26 @@ const LocationButton = styled.button`
   border-radius: 5px;
   margin-bottom: 1rem;
   cursor: pointer;
-  width: auto;
-  display: inline-block;
-
-  &:hover {
-    background-color: #3151b0;
-  }
 `;
 
-const InfoWindowContent = styled.div`
-  padding: 10px;
-  
-  h3 {
-    margin: 0 0 8px 0;
-    color: #333;
-  }
-  
-  p {
-    margin: 4px 0;
-    color: #666;
-  }
+const ErrorMessage = styled.div`
+  color: #ff4444;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
 `;
 
-const LocationInfo = styled.div`
-  background: #2a2b3d;
-  padding: 15px;
-  border-radius: 8px;
-  margin-top: 10px;
+const LoadingOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
   color: white;
-
-  h4 {
-    margin: 0 0 8px 0;
-    color: #4169E1;
-  }
-
-  p {
-    margin: 4px 0;
-  }
+  z-index: 1000;
 `;
 
 function AddDevice() {
@@ -149,123 +110,111 @@ function AddDevice() {
   const [formData, setFormData] = useState({
     deviceName: '',
     location: '',
-    deviceId: '',
-    token: '',
     latitude: null,
     longitude: null
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [center, setCenter] = useState({ lat: 13.7563, lng: 100.5018 });
-  const [locationInfo, setLocationInfo] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(null);
   const [showInfoWindow, setShowInfoWindow] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mapInstance, setMapInstance] = useState(null);
+  const [locationInfo, setLocationInfo] = useState(null);
 
-  useEffect(() => {
-    const fetchDeviceId = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'devices'));
-        const deviceCount = querySnapshot.size;
-        setFormData((prev) => ({
-          ...prev,
-          deviceId: String(deviceCount + 1)
-        }));
-      } catch (error) {
-        console.error('Error fetching device count:', error);
-        alert('Failed to fetch device ID. Please try again.');
-      }
-    };
-
-    fetchDeviceId();
-  }, []);
-
-  const fetchLocationInfo = async (lat, lng) => {
+  const getAddressFromLatLng = async (lat, lng) => {
     try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyAt02FUjfI5nnVTGSROXaGKaJ-dHtFomOo`
-      );
-      const data = await response.json();
-      
-      if (data.results && data.results[0]) {
-        const result = data.results[0];
-        const addressComponents = result.address_components;
-        
-        // เก็บที่อยู่แบบเต็ม
-        const fullAddress = result.formatted_address;
-  
-        const locationData = {
-          fullAddress: fullAddress, // เก็บที่อยู่แบบเต็ม
-          street: addressComponents.find(c => c.types.includes('route'))?.long_name || '',
-          subdistrict: addressComponents.find(c => c.types.includes('sublocality'))?.long_name || '',
-          district: addressComponents.find(c => c.types.includes('locality'))?.long_name || '',
-          province: addressComponents.find(c => c.types.includes('administrative_area_level_1'))?.long_name || '',
-          postalCode: addressComponents.find(c => c.types.includes('postal_code'))?.long_name || '',
-        };
-  
-        setLocationInfo(locationData);
-        setFormData(prev => ({
-          ...prev,
-          location: fullAddress // ใช้ที่อยู่แบบเต็มในฟอร์ม
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching location info:', error);
-    }
-  };
+      const geocoder = new window.google.maps.Geocoder();
+      const latlng = { lat, lng };
 
-  const searchLocation = async (query) => {
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=AIzaSyAt02FUjfI5nnVTGSROXaGKaJ-dHtFomOo`
-      );
-      const data = await response.json();
-      
-      if (data.results && data.results[0]) {
-        const result = data.results[0];
-        const { lat, lng } = result.geometry.location;
-        
-        setCenter({ lat, lng });
-        setFormData(prev => ({
-          ...prev,
-          latitude: lat,
-          longitude: lng
-        }));
-        
-        await fetchLocationInfo(lat, lng);
-        setShowInfoWindow(true);
-      }
-    } catch (error) {
-      console.error('Error searching location:', error);
-    }
-  };
+      const result = await new Promise((resolve, reject) => {
+        geocoder.geocode({ location: latlng, language: 'en' }, (results, status) => {
+          if (status === 'OK') {
+            resolve(results[0]);
+          } else {
+            reject(status);
+          }
+        });
+      });
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.deviceName.trim()) {
-      newErrors.deviceName = 'Device name is required';
+      const addressComponents = result.address_components;
+      const formattedAddress = result.formatted_address;
+
+      const locationData = {
+        fullAddress: formattedAddress,
+        street: addressComponents.find(c => c.types.includes('route'))?.long_name || '',
+        subdistrict: addressComponents.find(c => c.types.includes('sublocality_level_1'))?.long_name || '',
+        district: addressComponents.find(c => c.types.includes('administrative_area_level_2'))?.long_name || '',
+        province: addressComponents.find(c => c.types.includes('administrative_area_level_1'))?.long_name || '',
+        postalCode: addressComponents.find(c => c.types.includes('postal_code'))?.long_name || '',
+      };
+
+      setLocationInfo(locationData);
+      return formattedAddress;
+    } catch (error) {
+      console.error('Error getting address:', error);
+      return 'Address not found';
     }
-    if (!formData.location.trim()) {
-      newErrors.location = 'Location is required';
-    }
-    if (!formData.latitude || !formData.longitude) {
-      newErrors.location = 'Please select location on map';
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleMapClick = async (e) => {
     const lat = e.latLng.lat();
     const lng = e.latLng.lng();
     
+    setSelectedLocation({ lat, lng });
+    const address = await getAddressFromLatLng(lat, lng);
+    
     setFormData(prev => ({
       ...prev,
       latitude: lat,
-      longitude: lng
+      longitude: lng,
+      location: address
     }));
-    
-    await fetchLocationInfo(lat, lng);
     setShowInfoWindow(true);
+  };
+
+  const searchLocation = async () => {
+    if (!searchQuery.trim()) return;
+
+    try {
+      const geocoder = new window.google.maps.Geocoder();
+      
+      geocoder.geocode(
+        { 
+          address: searchQuery,
+          region: 'TH',
+          language: 'en'
+        }, 
+        async (results, status) => {
+          if (status === 'OK' && results[0]) {
+            const location = results[0].geometry.location;
+            const lat = location.lat();
+            const lng = location.lng();
+            const address = await getAddressFromLatLng(lat, lng);
+
+            setCenter({ lat, lng });
+            setSelectedLocation({ lat, lng });
+            setFormData(prev => ({
+              ...prev,
+              location: address,
+              latitude: lat,
+              longitude: lng
+            }));
+            setShowInfoWindow(true);
+
+            if (mapInstance) {
+              mapInstance.panTo({ lat, lng });
+              mapInstance.setZoom(17);
+            }
+          } else {
+            alert('Location not found. Please try again.');
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Error searching location:', error);
+      alert('Error searching location');
+    }
   };
 
   const getCurrentLocation = () => {
@@ -276,18 +225,27 @@ function AddDevice() {
           const lng = position.coords.longitude;
           
           setCenter({ lat, lng });
+          setSelectedLocation({ lat, lng });
+          
+          const address = await getAddressFromLatLng(lat, lng);
+          
           setFormData(prev => ({
             ...prev,
             latitude: lat,
-            longitude: lng
+            longitude: lng,
+            location: address
           }));
           
-          await fetchLocationInfo(lat, lng);
+          if (mapInstance) {
+            mapInstance.panTo({ lat, lng });
+            mapInstance.setZoom(17);
+          }
+          
           setShowInfoWindow(true);
         },
         (error) => {
           console.error('Error getting location:', error);
-          alert('Unable to get your location');
+          alert('Unable to get current location');
         }
       );
     } else {
@@ -295,48 +253,43 @@ function AddDevice() {
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    if (name === 'location') {
-      setSearchQuery(value);
-    }
-    
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
+  const handleMapLoad = (map) => {
+    setMapInstance(map);
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
-      e.preventDefault();
-      searchLocation(searchQuery);
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.deviceName.trim()) {
+      newErrors.deviceName = 'Device name is required';
     }
+    if (!formData.location) {
+      newErrors.location = 'Please select location on map';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsLoading(true);
-
     try {
+      // Get current device count for deviceId
+      const querySnapshot = await getDocs(collection(db, 'devices'));
+      const deviceCount = querySnapshot.size;
+      const newDeviceId = String(deviceCount + 1);
+      
+      // Generate random token
+      const newToken = `TKN-${Math.random().toString(36).substr(2, 16).toUpperCase()}`;
+
       const deviceData = {
         ...formData,
-        token: formData.token || `TKN-${Math.random().toString(36).substr(2, 16).toUpperCase()}`,
+        deviceId: newDeviceId,
+        token: newToken,
+        locationInfo,
         createdAt: new Date(),
-        status: 'active',
-        locationInfo: locationInfo
+        status: 'active'
       };
 
       await addDoc(collection(db, 'devices'), deviceData);
@@ -344,15 +297,9 @@ function AddDevice() {
       navigate('/devices');
     } catch (error) {
       console.error('Error adding device:', error);
-      alert('Failed to add device. Please try again.');
+      alert('Error adding device');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleBack = () => {
-    if (window.confirm('Are you sure you want to go back? Any unsaved changes will be lost.')) {
-      navigate('/devices');
     }
   };
 
@@ -365,16 +312,14 @@ function AddDevice() {
       )}
 
       <Title>Add device</Title>
-
       <FormContainer onSubmit={handleSubmit}>
         <FormGroup>
           <Label>Device name</Label>
           <Input
             type="text"
-            name="deviceName"
-            placeholder="Please enter device name"
             value={formData.deviceName}
-            onChange={handleChange}
+            onChange={(e) => setFormData(prev => ({ ...prev, deviceName: e.target.value }))}
+            placeholder="Enter device name"
           />
           {errors.deviceName && <ErrorMessage>{errors.deviceName}</ErrorMessage>}
         </FormGroup>
@@ -383,17 +328,17 @@ function AddDevice() {
           <Label>Location</Label>
           <Input
             type="text"
-            name="location"
-            placeholder="Search location or enter address"
-            value={formData.location}
-            onChange={handleChange}
-            onKeyPress={handleKeyPress}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search location"
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                searchLocation();
+              }
+            }}
           />
-          <LocationButton 
-            type="button" 
-            onClick={() => searchQuery.trim() && searchLocation(searchQuery)}
-            style={{ marginTop: '10px' }}
-          >
+          <LocationButton type="button" onClick={searchLocation}>
             Search Location
           </LocationButton>
           {errors.location && <ErrorMessage>{errors.location}</ErrorMessage>}
@@ -405,32 +350,40 @@ function AddDevice() {
             Get Current Location
           </LocationButton>
           <MapContainer>
-            <LoadScript googleMapsApiKey="AIzaSyAt02FUjfI5nnVTGSROXaGKaJ-dHtFomOo">
+            <LoadScript googleMapsApiKey="
+AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
               <GoogleMap
                 mapContainerStyle={{ height: "100%", width: "100%" }}
                 center={center}
-                zoom={13}
+                zoom={15}
                 onClick={handleMapClick}
+                onLoad={handleMapLoad}
+                options={{
+                  zoomControl: true,
+                  streetViewControl: false,
+                  mapTypeControl: true,
+                  fullscreenControl: true,
+                }}
               >
-                {formData.latitude && formData.longitude && (
+                {selectedLocation && (
                   <Marker
-                    position={{
-                      lat: formData.latitude,
-                      lng: formData.longitude
-                    }}
+                    position={selectedLocation}
+                    animation={2}
                   >
                     {showInfoWindow && locationInfo && (
                       <InfoWindow
-                        position={{
-                          lat: formData.latitude,
-                          lng: formData.longitude
-                        }}
+                        position={selectedLocation}
                         onCloseClick={() => setShowInfoWindow(false)}
                       >
-                        <InfoWindowContent>
-                          <h3>Location Details</h3>
+                        <div>
+                          <h3>Selected Location</h3>
                           <p>{locationInfo.fullAddress}</p>
-                        </InfoWindowContent>
+                          {locationInfo.street && <p>Street: {locationInfo.street}</p>}
+                          {locationInfo.subdistrict && <p>Sub-district: {locationInfo.subdistrict}</p>}
+                          {locationInfo.district && <p>District: {locationInfo.district}</p>}
+                          {locationInfo.province && <p>Province: {locationInfo.province}</p>}
+                          {locationInfo.postalCode && <p>Postal Code: {locationInfo.postalCode}</p>}
+                        </div>
                       </InfoWindow>
                     )}
                   </Marker>
@@ -438,41 +391,12 @@ function AddDevice() {
               </GoogleMap>
             </LoadScript>
           </MapContainer>
-
-          {locationInfo && (
-            <LocationInfo>
-              <h4>Selected Location Details</h4>
-              <p><strong>Street:</strong> {locationInfo.street}</p>
-              <p><strong>Subdistrict:</strong> {locationInfo.subdistrict}</p>
-              <p><strong>District:</strong> {locationInfo.district}</p>
-              <p><strong>Province:</strong> {locationInfo.province}</p>
-              <p><strong>Postal Code:</strong> {locationInfo.postalCode}</p>
-            </LocationInfo>
-          )}
-        </FormGroup>
-
-        <FormGroup>
-          <Label>Device ID</Label>
-          <Input
-            type="text"
-            name="deviceId"
-            value={formData.deviceId}
-            readOnly
-          />
-        </FormGroup>
-
-        <FormGroup>
-          <Label>Token</Label>
-          <Input
-            type="text"
-            name="token"
-            value={formData.token}
-            readOnly
-          />
         </FormGroup>
 
         <ButtonContainer>
-          <Button type="button" onClick={handleBack}>Back</Button>
+          <Button type="button" onClick={() => navigate('/devices')}>
+            Back
+          </Button>
           <Button 
             type="submit" 
             disabled={isLoading}
@@ -487,3 +411,7 @@ function AddDevice() {
 }
 
 export default AddDevice;
+
+
+
+

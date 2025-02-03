@@ -1,8 +1,10 @@
 // src/components/Dashboard.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import Map from './Map';
-import { useNavigate } from 'react-router-dom'; // แก้ไขให้เหลือแค่ useNavigate
+import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -77,55 +79,119 @@ const WarningIcon = styled.div`
   font-size: 1.5rem;
 `;
 
+const LoadingText = styled.div`
+  color: white;
+  font-size: 1.2rem;
+  text-align: center;
+  padding: 2rem;
+`;
+
+const ErrorText = styled.div`
+  color: #ff4444;
+  font-size: 1.2rem;
+  text-align: center;
+  padding: 2rem;
+`;
+
+const NoDevicesText = styled.div`
+  color: white;
+  font-size: 1.2rem;
+  text-align: center;
+  padding: 2rem;
+`;
+
+const LastUpdatedText = styled.p`
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+`;
+
 function Userdevicelist() {
-    const navigate = useNavigate(); // ใช้ได้แล้วหลังจาก import
-  const devices = [
-    {
-      id: 1,
-      name: 'Device 1',
-      location: 'ICT Mahidol',
-      status: 'Safe'
-    },
-    {
-      id: 2,
-      name: 'Device 2',
-      location: '7-11',
-      status: 'Danger'
-    },
-  ];
-  const handleDeviceClick = (deviceId) => {
-    navigate(`/device/${deviceId}`);
-  };
+    const navigate = useNavigate();
+    const [devices, setDevices] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-  return (
-    <DashboardContainer>
-        <ContentGrid>
-            <Section>
-                <Title>Map</Title>
-                <Map />
-            </Section>
+    useEffect(() => {
+        const fetchDevices = async () => {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'devices'));
+                const deviceList = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    status: doc.data().status === 'active' ? 'Safe' : 'Danger'
+                }));
+                setDevices(deviceList);
+                setError(null);
+            } catch (error) {
+                console.error('Error fetching devices:', error);
+                setError('Failed to load devices. Please try again later.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-            <Section>
-                <Title>Devices</Title>
-                <DeviceList>
-                    {devices.map(device => (
-                        <DeviceCard 
-                            key={device.id} 
-                            status={device.status}
-                            onClick={() => handleDeviceClick(device.id)}
-                        >
-                            <DeviceName>{device.name}</DeviceName>
-                            <LocationText>Location: {device.location}</LocationText>
-                            {device.status === 'Danger' && (
-                                <WarningIcon>⚠️</WarningIcon>
-                            )}
-                        </DeviceCard>
-                    ))}
-                </DeviceList>
-            </Section>
-        </ContentGrid>
-    </DashboardContainer>
-);
+        fetchDevices();
+    }, []);
+
+    const handleDeviceClick = (deviceId) => {
+        navigate(`/device/${deviceId}`);
+    };
+
+    const formatDate = (timestamp) => {
+        if (!timestamp) return '';
+        const date = timestamp.toDate();
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }).format(date);
+    };
+
+    return (
+        <DashboardContainer>
+            <ContentGrid>
+                <Section>
+                    <Title>Map</Title>
+                    <Map />
+                </Section>
+
+                <Section>
+                    <Title>Devices</Title>
+                    {isLoading ? (
+                        <LoadingText>Loading devices...</LoadingText>
+                    ) : error ? (
+                        <ErrorText>{error}</ErrorText>
+                    ) : devices.length === 0 ? (
+                        <NoDevicesText>No devices found</NoDevicesText>
+                    ) : (
+                        <DeviceList>
+                            {devices.map(device => (
+                                <DeviceCard 
+                                    key={device.id} 
+                                    status={device.status}
+                                    onClick={() => handleDeviceClick(device.id)}
+                                >
+                                    <DeviceName>{device.deviceName}</DeviceName>
+                                    <LocationText>Location: {device.location}</LocationText>
+                                    {device.lastUpdated && (
+                                        <LastUpdatedText>
+                                            Last Updated: {formatDate(device.lastUpdated)}
+                                        </LastUpdatedText>
+                                    )}
+                                    {device.status === 'Danger' && (
+                                        <WarningIcon>⚠️</WarningIcon>
+                                    )}
+                                </DeviceCard>
+                            ))}
+                        </DeviceList>
+                    )}
+                </Section>
+            </ContentGrid>
+        </DashboardContainer>
+    );
 }
 
 export default Userdevicelist;

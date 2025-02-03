@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-
+import { doc, getDoc } from 'firebase/firestore';
 
 const Container = styled.div`
   background-color: #1a1b2e;
@@ -20,6 +20,7 @@ const Container = styled.div`
   left: 0;
   z-index: 9999;
 `;
+
 const Logo = styled.div`
   display: flex;
   align-items: center;
@@ -153,6 +154,7 @@ const LoadingOverlay = styled.div`
   color: white;
   z-index: 1000;
 `;
+
 const RegisterLink = styled.div`
   text-align: center;
   margin-top: 1.5rem;
@@ -199,8 +201,28 @@ function Login() {
     setIsLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      navigate('/');
+      // 1. ล็อกอินด้วย Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(
+        auth, 
+        formData.email, 
+        formData.password
+      );
+
+      // 2. ดึงข้อมูล role จาก Firestore
+      const userDoc = await getDoc(doc(db, 'UserInfo', userCredential.user.uid));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        // 3. นำทางไปยังหน้าที่เหมาะสมตาม role
+        if (userData.role === 'admin') {
+          navigate('/dashboard');
+        } else {
+          navigate('/'); // หรือหน้าอื่นๆ สำหรับ user ปกติ
+        }
+      } else {
+        setError('User data not found');
+      }
     } catch (error) {
       console.error("Login error:", error);
       setError('Invalid email or password');
@@ -226,7 +248,6 @@ function Login() {
 
       <FormContainer onSubmit={handleSubmit}>
         <Title>Sign in</Title>
-        
 
         <FormGroup>
           <Input
@@ -268,10 +289,11 @@ function Login() {
         >
           {isLoading ? 'Signing in...' : 'Login'}
         </Button>
+
         <RegisterLink>
-        Don't have an account?
-        <a href="/register">Sign up</a>
-      </RegisterLink>
+          Don't have an account?
+          <a href="/register">Sign up</a>
+        </RegisterLink>
       </FormContainer>
     </Container>
   );
