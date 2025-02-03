@@ -350,8 +350,7 @@ function AddDevice() {
             Get Current Location
           </LocationButton>
           <MapContainer>
-            <LoadScript googleMapsApiKey="
-AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
+            <LoadScript googleMapsApiKey="AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
               <GoogleMap
                 mapContainerStyle={{ height: "100%", width: "100%" }}
                 center={center}
