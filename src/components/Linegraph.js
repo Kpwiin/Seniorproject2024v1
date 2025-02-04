@@ -125,8 +125,14 @@ export const LineGraph = () => {
                 return gradient;
               })(), // Same gradient for the fill area under the line
               tension: 0.2, // Reduced tension for a more pronounced curve
-              pointBackgroundColor: sortedData.map(level => level >= 85 ? 'rgb(255, 0, 0)' : 'rgb(32, 159, 40)'), // Set pointer color based on noise level
+              pointBackgroundColor: sortedData.map(level => 
+                level >= 85 ? 'rgb(255, 0, 0)' :   
+                level >= 70 ? 'rgb(227, 174, 41)' : 
+                'rgb(32, 159, 40)'          
+            ), // Set pointer color based on noise level
               pointBorderColor: "#fff", // White point borders
+              pointRadius: 5,  
+              pointHoverRadius: 7, 
               fill: true, // Fill the area under the line
               spanGaps: true, // Allow the line to span across gaps
             },
@@ -208,8 +214,14 @@ export const LineGraph = () => {
               })(), // Define gradient for the line color
               fill: true, // Fill the area under the line
               tension: 0.3, // Line curve tension
-              pointBackgroundColor: averages.map(level => level >= 85 ? 'rgb(255, 0, 0)' : 'rgb(32, 159, 40)'), // Point color based on noise level
+              pointBackgroundColor: averages.map(level => 
+                level >= 85 ? 'rgb(255, 0, 0)' : 
+                level >= 70 ? 'rgb(255, 255, 0)' : 
+                'rgb(32, 159, 40)'                
+            ), // Point color based on noise level
               pointBorderColor: "#fff", // White point borders
+              pointRadius: 5,  
+              pointHoverRadius: 7, 
               backgroundColor: (() => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -285,8 +297,14 @@ export const LineGraph = () => {
       })(), // Apply the gradient to the line
       fill: true, // Fill the area under the line
       tension: 0.3, // Line tension
-      pointBackgroundColor: averages.map(level => level >= 85 ? 'rgb(255, 0, 0)' : 'rgb(32, 159, 40)'), // Set point color based on level
+      pointBackgroundColor: averages.map(level => 
+        level >= 85 ? 'rgb(255, 0, 0)' : 
+        level >= 70 ? 'rgb(255, 255, 0)' : 
+        'rgb(32, 159, 40)'                
+    ), // Set point color based on level
       pointBorderColor: "#fff", // White point borders
+      pointRadius: 5,  
+      pointHoverRadius: 7, 
       backgroundColor: (() => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -401,8 +419,10 @@ export const LineGraph = () => {
                 } dB`,
               ],
               backgroundColor: (filteredData.datasets[0]?.data || []).slice(-1)[0] >= 85 
-                ? 'rgba(255, 35, 35, 0.85)' // Red background if level >= 85 dB
-                : 'rgba(26, 226, 11, 0.85)', // Default background
+              ? 'rgba(255, 35, 35, 0.85)'  
+              : (filteredData.datasets[0]?.data || []).slice(-1)[0] >= 70
+              ? 'rgba(255, 255, 0, 0.85)' 
+              : 'rgba(26, 226, 11, 0.85)', 
               borderColor: 'rgba(0, 0, 0, 0.2)', // Subtle border
               borderWidth: 1,
               borderRadius: 8, // Rounded corners

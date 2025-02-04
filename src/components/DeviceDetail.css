@@ -121,6 +121,21 @@ html, body {
     transform: scale(1.05);
   }
   
+  .medium-noise {
+    background-color: #d4a10c; 
+    color: #E0E0E0;
+    border: 1px solid #f7c600; 
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease, transform 0.3s ease;
+  }
+
+  .medium-noise:hover {
+    transform: scale(1.05);
+  }
+
   .graph-container h2, .history-container h2 {
     color: #E0E0E0; /* Header color in light */
     font-size: 1.5rem;

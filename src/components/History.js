@@ -116,10 +116,14 @@ export const History = () => {
           borderColor: gradient,
           backgroundColor: gradient,
           tension: 0.2,
-          pointBackgroundColor: selectedLevels.map(
-            (level) => (level >= 85 ? 'rgb(255, 0, 0)' : 'rgb(32, 159, 40)')
-          ),
+          pointBackgroundColor: selectedLevels.map(level => 
+            level >= 85 ? 'rgb(255, 0, 0)' :  
+            level >= 70 ? 'rgb(255, 255, 0)' : 
+            'rgb(32, 159, 40)'             
+        ),
           pointBorderColor: '#fff',
+          pointRadius: 5,  
+          pointHoverRadius: 7, 
           fill: true,
           spanGaps: true,
         },
@@ -252,7 +256,12 @@ export const History = () => {
       {displayedData.map((item, index) => (
         <div key={index}>
           <div
-            className={`history-item ${item.highNoise ? 'high-noise' : 'normal-noise'}`}
+            className={`history-item ${
+              item.avg >= 85 ? 'high-noise' : 
+              item.avg >= 70 ? 'medium-noise' : 
+              'normal-noise'
+            }`}
+            
             onClick={() => {
               setSelectedDate(item.date);
               const sortedData = item.timestamps
@@ -291,7 +300,7 @@ export const History = () => {
                 Graph for {new Date(selectedDate).toLocaleDateString()}
               </h3>
               <Line data={getChartData()} options={chartOptions} />
-              <div class="a-container">
+              <div className="a-container">
               {/* All Sound Levels */}
               <div className="all-day-sound-levels">
                 <h4>Sound Levels of the Day</h4>
@@ -305,10 +314,13 @@ export const History = () => {
                           hour12: false,
                         })}
                       
-                      <span style={{ color: level > 85 ? 'red' : 'green' }}>
+                      <span style={{ 
+                       color: level >= 85 ? 'red' : 
+                      level >= 70 ? 'yellow' : 
+                      'green' 
+                      }}>
                       {level} dB
                       </span>
-                      
                     </li>
                   ))}
                 </ul>
