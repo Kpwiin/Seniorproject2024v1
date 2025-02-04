@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import {db} from '../firebase'; 
 import './Complaint.css';
 
+
 function Complaint() {
   const [complaints, setComplaints] = useState([]);
   const [lastDoc, setLastDoc] = useState(null);
