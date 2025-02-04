@@ -17,5 +17,4 @@ function DeviceDetail() {
   );
 }
 
-
 export default DeviceDetail;
