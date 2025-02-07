@@ -16,6 +16,7 @@ import Register from './components/Register';
 import Userdevicelist from './components/Userdevicelist';
 import DeviceDetail from './components/DeviceDetail';
 import HistoryDetail from './components/HistoryDetail';
+import EditDevice from './components/EditDevice';
 
 
 
@@ -40,6 +41,7 @@ function App() {
           <Route path="/" element={< Userdevicelist/>} />
           <Route path="/device/:id" element={<DeviceDetail />} />
           <Route path="/device/:id/history/:date" element={<HistoryDetail />} />
+          <Route path="/device/:id/edit" element={<EditDevice />} /> 
         </Routes>
       </div>
     </Router>

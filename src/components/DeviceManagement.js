@@ -1,127 +1,149 @@
-// src/components/DeviceManagement.js
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { FiPlus, FiLogOut, FiSettings, FiRefreshCw } from 'react-icons/fi';
 
 const Container = styled.div`
-  background-color: #1a1b2e;
+  background: linear-gradient(135deg, #1a1b2e 0%, #2d2e47 100%);
   min-height: 100vh;
   padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const Header = styled.header`
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
 `;
 
 const Title = styled.h1`
-  color: #4169E1;
-  text-align: center;
-  font-size: 2rem;
+  color: #fff;
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(90deg, #4169E1, #00bfff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+`;
+
+const DeviceGrid = styled.div`
+  width: 100%;
+  max-width: 1200px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
   margin-bottom: 2rem;
 `;
 
 const DeviceCard = styled.div`
-  background-color: white;
-  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
   padding: 1.5rem;
-  margin: 1rem auto;
-  max-width: 800px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  transition: transform 0.2s;
+  flex-direction: column;
+  gap: 1rem;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    border-color: rgba(65, 105, 225, 0.5);
   }
 `;
 
 const DeviceInfo = styled.div`
   h2 {
-    font-size: 1.2rem;
-    margin-bottom: 0.5rem;
-    color: #333;
+    color: #fff;
+    font-size: 1.5rem;
+    margin: 0 0 1rem 0;
   }
+
   p {
-    color: #666;
-    margin: 0.3rem 0;
-    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 `;
 
-const LocationDetails = styled.div`
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
-  color: #777;
-`;
-
-const StatusDot = styled.div`
-  width: 8px;
-  height: 8px;
-  background-color: #4CAF50;
-  border-radius: 50%;
-  margin-left: 0.5rem;
+const StatusBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 500;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 0.2s ease;
+  background: ${props => props.active ? 'rgba(76, 175, 80, 0.2)' : 'rgba(244, 67, 54, 0.2)'};
+  color: ${props => props.active ? '#4CAF50' : '#f44336'};
+  border: 1px solid ${props => props.active ? '#4CAF50' : '#f44336'};
 
   &:hover {
-    transform: scale(1.2);
-  }
-`;
-
-const StatusContainer = styled.div`
-  display: flex;
-  align-items: center;
-  color: black;
-  font-size: 0.9rem;
-`;
-
-const AddButton = styled.button`
-  width: 40px;
-  height: 40px;
-  border: 2px solid white;
-  background: transparent;
-  color: white;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 2rem auto;
-  border-radius: 8px;
-  transition: all 0.2s;
-  
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
     transform: scale(1.05);
   }
 `;
 
-const ExitButton = styled.button`
-  background-color: #4169E1;
-  color: white;
-  border: none;
-  padding: 0.8rem 3rem;
-  border-radius: 10px;
-  font-size: 1.1rem;
+const Button = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
   cursor: pointer;
-  display: block;
-  margin: 2rem auto;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  border: none;
   
-  &:hover {
-    background-color: #3151b0;
-    transform: translateY(-2px);
-  }
+  ${props => props.primary ? `
+    background: linear-gradient(90deg, #4169E1, #00bfff);
+    color: white;
+    
+    &:hover {
+      background: linear-gradient(90deg, #3151b0, #0095ff);
+      transform: translateY(-2px);
+    }
+  ` : `
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+  `}
 `;
 
-const LoadingOverlay = styled.div`
+const ButtonGroup = styled.div`
   display: flex;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  font-size: 1.2rem;
+  gap: 1rem;
+`;
+
+const LoadingSpinner = styled.div`
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #4169E1;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
   margin: 2rem 0;
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 `;
 
 function DeviceManagement() {
@@ -133,9 +155,9 @@ function DeviceManagement() {
     const fetchDevices = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, 'devices'));
-        const deviceList = querySnapshot.docs.map(doc => ({
+        const deviceList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         }));
         setDevices(deviceList);
       } catch (error) {
@@ -150,21 +172,28 @@ function DeviceManagement() {
   }, []);
 
   const handleStatusToggle = async (e, deviceId, currentStatus) => {
-    e.stopPropagation(); // Prevent navigation to settings page
+    e.stopPropagation();
     try {
-      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+      const updatedTime = new Date();
       const docRef = doc(db, 'devices', deviceId);
+
       await updateDoc(docRef, {
         status: newStatus,
-        lastUpdated: new Date()
+        lastUpdated: updatedTime,
       });
-      
-      // Update local state
-      setDevices(devices.map(device => 
-        device.id === deviceId 
-          ? { ...device, status: newStatus }
-          : device
-      ));
+
+      console.log(`Firestore updated: ${deviceId}, status: ${newStatus}, lastUpdated: ${updatedTime}`);
+
+      setDevices((prevDevices) =>
+        prevDevices.map((device) =>
+          device.id === deviceId
+            ? { ...device, status: newStatus, lastUpdated: { toDate: () => updatedTime } }
+            : device
+        )
+      );
+
+      console.log('State updated:', devices);
     } catch (error) {
       console.error('Error updating status:', error);
       alert('Failed to update device status');
@@ -180,70 +209,68 @@ function DeviceManagement() {
   };
 
   const handleExit = () => {
-    navigate('/');
+    navigate('/dashboard');
   };
 
   const formatDate = (timestamp) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate();
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     }).format(date);
   };
 
   return (
     <Container>
-      <Title>Devices</Title>
-      
+      <Header>
+        <Title>Device Management</Title>
+        <ButtonGroup>
+          <Button onClick={() => window.location.reload()}>
+            <FiRefreshCw /> Refresh
+          </Button>
+          <Button primary onClick={handleAddDevice}>
+            <FiPlus /> Add Device
+          </Button>
+          <Button onClick={handleExit}>
+            <FiLogOut /> Exit
+          </Button>
+        </ButtonGroup>
+      </Header>
+
       {isLoading ? (
-        <LoadingOverlay>Loading devices...</LoadingOverlay>
-      ) : devices.length === 0 ? (
-        <DeviceCard style={{ justifyContent: 'center' }}>
-          <DeviceInfo>
-            <h2>No devices found</h2>
-            <p>Click the + button to add a device</p>
-          </DeviceInfo>
-        </DeviceCard>
+        <LoadingSpinner />
       ) : (
-        devices.map(device => (
-          <DeviceCard 
-            key={device.id}
-            onClick={() => handleDeviceClick(device.id)}
-          >
+        <DeviceGrid>
+          {devices.map(device => (
+            <DeviceCard key={device.id}>
             <DeviceInfo>
               <h2>{device.deviceName}</h2>
               <p><strong>Location:</strong> {device.location}</p>
-              <p><strong>Device ID:</strong> {device.deviceId}</p>
-              <p><strong>Token:</strong> {device.token}</p>
-              <p><strong>Last Updated:</strong> {formatDate(device.lastUpdated)}</p>
-              {device.locationInfo && (
-                <LocationDetails>
-                  <p><strong>Street:</strong> {device.locationInfo.street}</p>
-                  <p><strong>District:</strong> {device.locationInfo.district}</p>
-                  <p><strong>Province:</strong> {device.locationInfo.province}</p>
-                  <p><strong>Postal Code:</strong> {device.locationInfo.postalCode}</p>
-                </LocationDetails>
-              )}
-            </DeviceInfo>
-            <StatusContainer>
-              Status 
-              <StatusDot 
-                onClick={(e) => handleStatusToggle(e, device.id, device.status)}
-                style={{ 
-                  backgroundColor: device.status === 'active' ? '#4CAF50' : '#ff4444'
-                }}
-              />
-            </StatusContainer>
-          </DeviceCard>
-        ))
-      )}
+              <p><strong>Noise Threshold:</strong> {device.noiseThreshold} dB</p>
+              <p><strong>Sampling Period:</strong> {device.samplingPeriod} min</p>
+              <p><strong>Record Duration:</strong> {device.recordDuration || 'N/A'} sec</p>
 
-      <AddButton onClick={handleAddDevice}>+</AddButton>
-      <ExitButton onClick={handleExit}>Exit</ExitButton>
+            </DeviceInfo>
+            
+            <ButtonGroup>
+              <StatusBadge
+                active={device.status === 'Active'}
+                onClick={(e) => handleStatusToggle(e, device.id, device.status)}
+              >
+                {device.status === 'Active' ? '● Active' : '○ Inactive'}
+              </StatusBadge>
+              <Button onClick={() => handleDeviceClick(device.id)}>
+                <FiSettings /> Settings
+              </Button>
+            </ButtonGroup>
+          </DeviceCard>
+          ))}
+        </DeviceGrid>
+      )}
     </Container>
   );
 }
