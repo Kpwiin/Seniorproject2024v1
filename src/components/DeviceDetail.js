@@ -1,5 +1,5 @@
 import './DeviceDetail.css';
-import History from './HistoryDetail.js';
+import History from './History.js';
 import { LineGraph } from "./Linegraph";
 
 function DeviceDetail() {
