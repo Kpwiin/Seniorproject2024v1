@@ -363,47 +363,82 @@ function DeviceSettings() {
 
   const generateApi = async () => {
     try {
-      const baseUrl = "https://your-api-base-url.com/api/v1";
-      const endpoint = `${baseUrl}/devices/${id}`;
-      const apiKey = `dev_${Math.random().toString(36).substr(2, 15)}`;
+        setIsLoading(true);
+        
+        // สร้าง API Key
+        const newApiKey = `api_${Math.random().toString(36).substring(2, 15)}`;
+        
+        // ลงทะเบียน API key กับ server
+        const registerResponse = await fetch('http://localhost:5001/api/register-key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ apiKey: newApiKey })
+        });
 
-      const apiDoc = {
-        endpoint: endpoint,
-        apiKey: apiKey,
-        methods: {
-          GET: {
-            description: "Get device data",
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Content-Type": "application/json"
-            }
-          },
-          POST: {
-            description: "Update device data",
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Content-Type": "application/json"
-            }
-          }
+        if (!registerResponse.ok) {
+            throw new Error('Failed to register API key with server');
         }
-      };
 
-      const docRef = doc(db, 'devices', id);
-      await updateDoc(docRef, {
-        apiEndpoint: endpoint,
-        apiKey: apiKey,
-        apiDocumentation: apiDoc
-      });
+        // สร้าง API documentation
+        const apiDoc = {
+            endpoint: `http://localhost:5001/api/devices/${id}`,
+            apiKey: newApiKey,
+            methods: {
+                GET: {
+                    description: "Get device data",
+                    url: `http://localhost:5001/api/devices/${id}`,
+                    headers: {
+                        "x-api-key": newApiKey,
+                        "Content-Type": "application/json"
+                    }
+                },
+                POST: {
+                    description: "Send device data",
+                    url: `http://localhost:5001/api/devices/${id}/data`,
+                    headers: {
+                        "x-api-key": newApiKey,
+                        "Content-Type": "application/json"
+                    },
+                    body: {
+                        noiseLevel: "number (dB)",
+                        timestamp: "string (ISO format)"
+                    }
+                }
+            }
+        };
 
-      setApiData(apiDoc);
-      setActiveTab('api');
-      setIsModalOpen(true);
+        // บันทึกข้อมูล API ลงใน Firebase
+        const docRef = doc(db, 'devices', id);
+        await updateDoc(docRef, {
+            apiKey: newApiKey,
+            apiEndpoint: apiDoc.endpoint,
+            apiDocumentation: apiDoc
+        });
+
+        // อัพเดท state
+        setApiData(apiDoc);
+        setDeviceData(prev => ({
+            ...prev,
+            apiKey: newApiKey,
+            apiEndpoint: apiDoc.endpoint
+        }));
+
+        // แสดง API documentation
+        setActiveTab('api');
+        setIsModalOpen(true);
+
+        // แสดงข้อความสำเร็จ
+        alert('API generated successfully!');
+
     } catch (error) {
-      console.error('Error generating API:', error);
-      alert('Failed to generate API endpoint');
+        console.error('Error generating API:', error);
+        alert('Failed to generate API: ' + error.message);
+    } finally {
+        setIsLoading(false);
     }
-  };
-
+};
   const handleShowToken = () => {
     setActiveTab('token');
     setIsModalOpen(true);
@@ -600,43 +635,53 @@ function DeviceSettings() {
               <>
                 <ModalTitle>API Documentation</ModalTitle>
                 <ApiSection>
-                  <ApiLabel>Endpoint:</ApiLabel>
-                  <ApiValue>
-                    {apiData?.endpoint}
-                    <CopyIcon onClick={() => navigator.clipboard.writeText(apiData?.endpoint)} />
-                  </ApiValue>
+    <ApiLabel>Endpoint:</ApiLabel>
+    <ApiValue>
+        {apiData?.endpoint}
+        <CopyIcon onClick={() => {
+            navigator.clipboard.writeText(apiData?.endpoint);
+            alert('Endpoint copied to clipboard!');
+        }} />
+    </ApiValue>
 
-                  <ApiLabel>API Key:</ApiLabel>
-                  <ApiValue>
-                    {apiData?.apiKey}
-                    <CopyIcon onClick={() => navigator.clipboard.writeText(apiData?.apiKey)} />
-                  </ApiValue>
+    <ApiLabel>API Key:</ApiLabel>
+    <ApiValue>
+        {apiData?.apiKey}
+        <CopyIcon onClick={() => {
+            navigator.clipboard.writeText(apiData?.apiKey);
+            alert('API Key copied to clipboard!');
+        }} />
+    </ApiValue>
 
-                  <ApiMethod>
-                    <ApiLabel>GET Request Example:</ApiLabel>
-                    <ApiValue>
-                      {`curl -X GET ${apiData?.endpoint} \\
--H "Authorization: Bearer ${apiData?.apiKey}" \\
+    <ApiMethod>
+        <ApiLabel>GET Request Example:</ApiLabel>
+        <ApiValue>
+            {`curl -X GET ${apiData?.methods?.GET?.url} \\
+-H "x-api-key: ${apiData?.apiKey}" \\
 -H "Content-Type: application/json"`}
-                      <CopyIcon onClick={() => navigator.clipboard.writeText(
-                        `curl -X GET ${apiData?.endpoint} -H "Authorization: Bearer ${apiData?.apiKey}" -H "Content-Type: application/json"`
-                      )} />
-                    </ApiValue>
-                  </ApiMethod>
+            <CopyIcon onClick={() => {
+                const curlCommand = `curl -X GET ${apiData?.methods?.GET?.url} -H "x-api-key: ${apiData?.apiKey}" -H "Content-Type: application/json"`;
+                navigator.clipboard.writeText(curlCommand);
+                alert('GET request copied to clipboard!');
+            }} />
+        </ApiValue>
+    </ApiMethod>
 
-                  <ApiMethod>
-                    <ApiLabel>POST Request Example:</ApiLabel>
-                    <ApiValue>
-                      {`curl -X POST ${apiData?.endpoint} \\
--H "Authorization: Bearer ${apiData?.apiKey}" \\
+    <ApiMethod>
+        <ApiLabel>POST Request Example:</ApiLabel>
+        <ApiValue>
+            {`curl -X POST ${apiData?.methods?.POST?.url} \\
+-H "x-api-key: ${apiData?.apiKey}" \\
 -H "Content-Type: application/json" \\
--d '{"noiseLevel": 75}'`}
-                      <CopyIcon onClick={() => navigator.clipboard.writeText(
-                        `curl -X POST ${apiData?.endpoint} -H "Authorization: Bearer ${apiData?.apiKey}" -H "Content-Type: application/json" -d '{"noiseLevel": 75}'`
-                      )} />
-                    </ApiValue>
-                  </ApiMethod>
-                </ApiSection>
+-d '{"noiseLevel": 75, "timestamp": "${new Date().toISOString()}"}'`}
+            <CopyIcon onClick={() => {
+                const curlCommand = `curl -X POST ${apiData?.methods?.POST?.url} -H "x-api-key: ${apiData?.apiKey}" -H "Content-Type: application/json" -d '{"noiseLevel": 75, "timestamp": "${new Date().toISOString()}"}'`;
+                navigator.clipboard.writeText(curlCommand);
+                alert('POST request copied to clipboard!');
+            }} />
+        </ApiValue>
+    </ApiMethod>
+</ApiSection>
               </>
             )}
             <CloseButton onClick={() => setIsModalOpen(false)}>Close</CloseButton>
