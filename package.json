@@ -3,20 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@react-google-maps/api": "^2.20.3",
+    "@react-google-maps/api": "^2.20.5",
     "chart.js": "^4.4.7",
     "chartjs-plugin-annotation": "^3.1.0",
+    "cors": "^2.8.5",
     "cra-template": "1.2.0",
     "date-fns": "^4.1.0",
-    "firebase": "^11.2.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase": "^11.1.0",
+    "leaflet": "^1.9.4",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.3.1",
     "react-icons": "^5.4.0",
+    "react-leaflet": "^4.2.1",
     "react-router-dom": "^7.1.0",
     "react-scripts": "^5.0.1",
     "recharts": "^2.15.0",
-    "styled-components": "^6.1.13",
+    "styled-components": "^6.1.14",
     "web-vitals": "^4.2.4"
   },
   "scripts": {
@@ -42,5 +47,13 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  }
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
+  },
+  "description": "- add Devices มี map ขึ้นมาแล้ว สามารถค้นหา location ได้เลย แสดงข้อมูลของ location นั้น - device management ดึงข้อมูล จาก firebase ได้แล้ว โชว์ทั้งหมดที่ adddevices ได้ - Device setting ลบ devices ได้ สามารถ ปรับ status ได้",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

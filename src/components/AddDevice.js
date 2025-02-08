@@ -14,23 +14,28 @@ const Container = styled.div`
 const Title = styled.h1`
   color: #4169E1;
   text-align: center;
-  font-size: 2rem;
+  font-size: 2.5rem;
   margin-bottom: 3rem;
 `;
 
 const FormContainer = styled.form`
   max-width: 800px;
   margin: 0 auto;
+  background-color: #242538;
+  padding: 2rem;
+  border-radius: 15px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem; /* เพิ่มระยะห่างระหว่างกลุ่มฟอร์ม */
 `;
 
 const Label = styled.label`
   display: block;
   color: white;
   margin-bottom: 0.5rem;
+  font-size: 1rem;
 `;
 
 const Input = styled.input`
@@ -39,7 +44,7 @@ const Input = styled.input`
   border-radius: 8px;
   border: none;
   background-color: white;
-  margin-bottom: 0.5rem;
+  font-size: 1rem;
 
   &::placeholder {
     color: #999;
@@ -61,9 +66,17 @@ const Button = styled.button`
   border-radius: 10px;
   font-size: 1.1rem;
   cursor: pointer;
+  transition: all 0.2s;
 
   &:hover {
     background-color: #3151b0;
+    transform: translateY(-2px);
+  }
+
+  &:disabled {
+    background-color: #3151b0;
+    cursor: not-allowed;
+    opacity: 0.7;
   }
 `;
 
@@ -73,6 +86,7 @@ const MapContainer = styled.div`
   margin-bottom: 1.5rem;
   border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 `;
 
 const LocationButton = styled.button`
@@ -81,10 +95,17 @@ const LocationButton = styled.button`
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 5px;
-  margin-bottom: 1rem;
+  margin-top: 1rem; /* เพิ่มระยะห่างด้านบน */
+  margin-bottom: 1rem; /* เพิ่มระยะห่างด้านล่าง */
   cursor: pointer;
-`;
+  font-size: 1rem;
+  transition: all 0.2s;
 
+  &:hover {
+    background-color: #3151b0;
+    transform: translateY(-2px);
+  }
+`;
 const ErrorMessage = styled.div`
   color: #ff4444;
   margin-top: 0.5rem;
@@ -103,6 +124,24 @@ const LoadingOverlay = styled.div`
   align-items: center;
   color: white;
   z-index: 1000;
+`;
+
+const InfoWindowContent = styled.div`
+  color: #333; /* สีข้อความเข้มขึ้น */
+  font-size: 0.9rem; /* ลดขนาดข้อความ */
+  line-height: 1.4;
+  padding: 0.5rem;
+  max-width: 250px; /* จำกัดความกว้างของ InfoWindow */
+
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    color: #4169E1; /* สีหัวข้อ */
+  }
+
+  p {
+    margin: 0.2rem 0;
+  }
 `;
 
 function AddDevice() {
@@ -289,12 +328,13 @@ function AddDevice() {
         token: newToken,
         locationInfo,
         createdAt: new Date(),
-        status: 'active'
+        status: 'Inactive'
       };
 
-      await addDoc(collection(db, 'devices'), deviceData);
+      const docRef = await addDoc(collection(db, 'devices'), deviceData);
       alert('Device added successfully!');
-      navigate('/devices');
+      // Navigate to device settings with the new path format
+      navigate(`/device/${docRef.id}/settings`);
     } catch (error) {
       console.error('Error adding device:', error);
       alert('Error adding device');
@@ -311,10 +351,10 @@ function AddDevice() {
         </LoadingOverlay>
       )}
 
-      <Title>Add device</Title>
+      <Title>Add Device</Title>
       <FormContainer onSubmit={handleSubmit}>
         <FormGroup>
-          <Label>Device name</Label>
+          <Label>Device Name</Label>
           <Input
             type="text"
             value={formData.deviceName}
@@ -343,54 +383,50 @@ function AddDevice() {
           </LocationButton>
           {errors.location && <ErrorMessage>{errors.location}</ErrorMessage>}
         </FormGroup>
-
         <FormGroup>
-          <Label>Select Location on Map</Label>
-          <LocationButton type="button" onClick={getCurrentLocation}>
-            Get Current Location
-          </LocationButton>
-          <MapContainer>
-            <LoadScript googleMapsApiKey="AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
-              <GoogleMap
-                mapContainerStyle={{ height: "100%", width: "100%" }}
-                center={center}
-                zoom={15}
-                onClick={handleMapClick}
-                onLoad={handleMapLoad}
-                options={{
-                  zoomControl: true,
-                  streetViewControl: false,
-                  mapTypeControl: true,
-                  fullscreenControl: true,
-                }}
+  <Label>Select Location on Map</Label>
+  <LocationButton type="button" onClick={getCurrentLocation}>
+    Get Current Location
+  </LocationButton>
+  <MapContainer>
+    <LoadScript googleMapsApiKey="AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
+      <GoogleMap
+        mapContainerStyle={{ height: "100%", width: "100%" }}
+        center={center}
+        zoom={15}
+        onClick={handleMapClick}
+        onLoad={handleMapLoad}
+        options={{
+          zoomControl: true,
+          streetViewControl: false,
+          mapTypeControl: true,
+          fullscreenControl: true,
+        }}
+      >
+        {selectedLocation && (
+          <Marker position={selectedLocation} animation={2}>
+            {showInfoWindow && locationInfo && (
+              <InfoWindow
+                position={selectedLocation}
+                onCloseClick={() => setShowInfoWindow(false)}
               >
-                {selectedLocation && (
-                  <Marker
-                    position={selectedLocation}
-                    animation={2}
-                  >
-                    {showInfoWindow && locationInfo && (
-                      <InfoWindow
-                        position={selectedLocation}
-                        onCloseClick={() => setShowInfoWindow(false)}
-                      >
-                        <div>
-                          <h3>Selected Location</h3>
-                          <p>{locationInfo.fullAddress}</p>
-                          {locationInfo.street && <p>Street: {locationInfo.street}</p>}
-                          {locationInfo.subdistrict && <p>Sub-district: {locationInfo.subdistrict}</p>}
-                          {locationInfo.district && <p>District: {locationInfo.district}</p>}
-                          {locationInfo.province && <p>Province: {locationInfo.province}</p>}
-                          {locationInfo.postalCode && <p>Postal Code: {locationInfo.postalCode}</p>}
-                        </div>
-                      </InfoWindow>
-                    )}
-                  </Marker>
-                )}
-              </GoogleMap>
-            </LoadScript>
-          </MapContainer>
-        </FormGroup>
+                <InfoWindowContent>
+                  <h3>Selected Location</h3>
+                  <p>{locationInfo.fullAddress}</p>
+                  {locationInfo.street && <p>Street: {locationInfo.street}</p>}
+                  {locationInfo.subdistrict && <p>Sub-district: {locationInfo.subdistrict}</p>}
+                  {locationInfo.district && <p>District: {locationInfo.district}</p>}
+                  {locationInfo.province && <p>Province: {locationInfo.province}</p>}
+                  {locationInfo.postalCode && <p>Postal Code: {locationInfo.postalCode}</p>}
+                </InfoWindowContent>
+              </InfoWindow>
+            )}
+          </Marker>
+        )}
+      </GoogleMap>
+    </LoadScript>
+  </MapContainer>
+</FormGroup>
 
         <ButtonContainer>
           <Button type="button" onClick={() => navigate('/devices')}>
@@ -410,7 +446,3 @@ function AddDevice() {
 }
 
 export default AddDevice;
-
-
-
-
