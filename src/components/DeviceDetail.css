@@ -38,7 +38,21 @@ html, body {
     min-height: 100vh;
     gap: 20px; 
   }
-  
+  .current-container {
+    width: 100%;
+    max-width: 1300px;
+    background-color: #1F1F1F;
+    padding: 60px;
+    border-radius: 12px; 
+    border: 1px solid transparent; 
+    border-color: #414ac4;
+    background-clip: padding-box; 
+    box-shadow: 0 4px 12px rgba(88, 95, 219, 0.3); 
+    transition: transform 0.3s ease, box-shadow 0.3s ease; 
+    position: relative;
+    overflow: hidden;
+  }
+
   .graph-container {
     width: 100%;
     max-width: 1300px;
@@ -53,7 +67,6 @@ html, body {
     position: relative;
     overflow: hidden;
   }
-  
   
   .history-container {
     width: 100%;
@@ -228,5 +241,7 @@ html, body {
     align-items: center;
     font-size: 0.95rem;
   }
-  
+  .current-sound-level{
+    font-size: 2rem;
+  }
   
