@@ -4,12 +4,11 @@ import styled from 'styled-components';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
-// Styled Components
 const Container = styled.div`
-  background-color: #1a1b2e;
+  background-color: #000000;
   min-height: 100vh;
   padding: 2rem;
-  color: white;
+  color: #ffffff;
 `;
 
 const Header = styled.div`
@@ -19,55 +18,80 @@ const Header = styled.div`
 `;
 
 const Title = styled.h2`
-  font-size: 2rem;
-  margin-bottom: 1rem;
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.5px;
 `;
 
 const Form = styled.form`
   max-width: 800px;
   margin: 0 auto;
-  background: #242538;
-  padding: 2rem;
-  border-radius: 15px;
+  background: #1a1a1a;
+  padding: 2.5rem;
+  border-radius: 16px;
+  border: 1px solid #333;
+  box-shadow: 0 4px 24px rgba(255, 255, 255, 0.05);
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 `;
 
 const Label = styled.label`
   display: block;
-  margin-bottom: 0.5rem;
-  font-size: 1.2rem;
+  margin-bottom: 0.8rem;
+  font-size: 1rem;
+  color: #999;
+  font-weight: 500;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 0.8rem;
+  padding: 1rem;
   font-size: 1rem;
-  border: none;
+  border: 1px solid #333;
   border-radius: 8px;
-  background: #1a1b2e;
-  color: white;
+  background: #0f0f0f;
+  color: #ffffff;
+  transition: all 0.2s ease;
 
   &:focus {
     outline: none;
-    border: 1px solid #4169E1;
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+  }
+
+  &:hover {
+    border-color: #666;
   }
 `;
 
 const Select = styled.select`
   width: 100%;
-  padding: 0.8rem;
+  padding: 1rem;
   font-size: 1rem;
-  border: none;
+  border: 1px solid #333;
   border-radius: 8px;
-  background: #1a1b2e;
-  color: white;
+  background: #0f0f0f;
+  color: #ffffff;
+  transition: all 0.2s ease;
+  cursor: pointer;
 
   &:focus {
     outline: none;
-    border: 1px solid #4169E1;
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+  }
+
+  &:hover {
+    border-color: #666;
+  }
+
+  option {
+    background: #0f0f0f;
+    color: #ffffff;
+    padding: 1rem;
   }
 `;
 
@@ -75,27 +99,34 @@ const ButtonGroup = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
+  margin-top: 3rem;
 `;
 
 const Button = styled.button`
-  background-color: #4169E1;
-  color: white;
+  background-color: #ffffff;
+  color: #000000;
   border: none;
-  padding: 0.8rem 2rem;
-  border-radius: 10px;
-  font-size: 1.1rem;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
 
   &:hover {
-    background-color: #3151b0;
+    background-color: #e0e0e0;
+    transform: translateY(-2px);
   }
 `;
 
 const CancelButton = styled(Button)`
-  background-color: #FF5252;
+  background-color: transparent;
+  color: #ffffff;
+  border: 1px solid #333;
 
   &:hover {
-    background-color: #D43F3F;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: #ffffff;
   }
 `;
 
@@ -103,9 +134,10 @@ const LoadingOverlay = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  color: white;
+  color: #ffffff;
   font-size: 1.2rem;
   height: 100vh;
+  background-color: #000000;
 `;
 
 // Main Component

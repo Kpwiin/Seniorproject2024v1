@@ -1,421 +1,367 @@
+// src/components/Dashboard.js
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { FaTools, FaSearch, FaFilter, FaMapMarkerAlt, FaClock } from 'react-icons/fa';
-import Map from './Map';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import Map from './Map';
 
 const DashboardContainer = styled.div`
+  display: flex;
   min-height: 100vh;
-  background-color: #1a1b2e;
-  padding: 2rem;
+  background-color: #0a0a0a;
+  color: #fff;
 `;
 
-const ContentGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 1.5rem;
-  max-width: 1800px;
-  margin: 0 auto;
-
-  @media (max-width: 1024px) {
-    grid-template-columns: 1fr;
-  }
+const MainContent = styled.div`
+  flex: 1;
+  margin-left: 250px;
+  position: relative;
+  background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
 `;
 
-const Section = styled.div`
-  background-color: #242538;
+const MapContainer = styled.div`
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+`;
+
+const DevicesOverlay = styled.div`
+  position: absolute;
+  top: 80px;
+  left: 20px;
+  background: rgba(15, 15, 15, 0.95);
+  padding: 20px;
   border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  width: 300px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  h2 {
+    color: white;
+    margin-bottom: 15px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
 `;
 
-const Title = styled.h2`
-  color: #4169E1;
-  font-size: 1.5rem;
-  font-weight: 600;
-`;
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: white;
+  margin-bottom: 15px;
+  font-size: 13px;
+  transition: all 0.3s ease;
 
-const SearchBar = styled.div`
-  display: flex;
-  align-items: center;
-  background-color: #2a2b3d;
-  border-radius: 8px;
-  padding: 0.5rem 1rem;
-  margin-bottom: 1rem;
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
 
-  input {
-    border: none;
-    background: none;
+  &:focus {
     outline: none;
-    width: 100%;
-    margin-left: 0.5rem;
-    font-size: 0.9rem;
-    color: #ffffff;
-
-    &::placeholder {
-      color: #6c757d;
-    }
-  }
-`;
-
-const IconButton = styled.button`
-  background-color: ${props => props.primary ? '#4169E1' : '#2a2b3d'};
-  color: white;
-  border: none;
-  padding: 0.8rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-
-  &:hover {
-    background-color: ${props => props.primary ? '#3558c0' : '#363749'};
-    transform: translateY(-2px);
-  }
-`;
-
-const FilterButton = styled.button`
-  background-color: ${props => props.active ? '#4169E1' : '#2a2b3d'};
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.9rem;
-
-  &:hover {
-    background-color: ${props => props.active ? '#3558c0' : '#363749'};
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
   }
 `;
 
 const DeviceCard = styled.div`
-  background-color: #2a2b3d;
-  border: 1px solid ${props => props.status === 'active' ? '#4CAF50' : '#FF7F7F'};
-  padding: 1rem;
+  background: ${props => {
+    const level = Number(props.soundLevel);
+    if (level >= 85) return 'linear-gradient(135deg, rgba(220, 53, 69, 0.95) 0%, rgba(187, 45, 59, 0.95) 100%)';
+    if (level >= 70) return 'linear-gradient(135deg, rgba(255, 193, 7, 0.95) 0%, rgba(224, 168, 0, 0.95) 100%)';
+    return 'linear-gradient(135deg, rgba(40, 167, 69, 0.95) 0%, rgba(34, 139, 57, 0.95) 100%)';
+  }};
+  padding: 12px;
   border-radius: 12px;
+  margin-bottom: 10px;
   cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
   }
 `;
 
-const StatusBadge = styled.span`
+const DeviceInfo = styled.div`
+  color: white;
+
+  .device-name {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  .location {
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: white;
+    opacity: 0.9;
+    text-align: left;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .info-item {
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .label {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+  }
+
+  .value {
+    color: white;
+    font-weight: 500;
+  }
+`;
+
+const InfoPopup = styled.div`
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  padding: 0.3rem 0.8rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  background-color: ${props => props.status === 'active' ? 'rgba(76, 175, 80, 0.2)' : 'rgba(255, 127, 127, 0.2)'};
-  color: ${props => props.status === 'active' ? '#4CAF50' : '#FF7F7F'};
-`;
-
-const DeviceName = styled.h3`
+  background: rgba(15, 15, 15, 0.98);
   color: white;
-  font-size: 1.2rem;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-  padding-right: 100px;
-`;
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: ${props => props.show ? 'block' : 'none'};
+  left: ${props => props.x}px;
+  top: ${props => props.y}px;
+  min-width: 300px;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 
-const LocationText = styled.p`
-  color: #b2bec3;
-  font-size: 0.95rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0.5rem 0;
-`;
+  div {
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 
-const LastUpdatedText = styled.p`
-  color: #6c757d;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-`;
+    strong {
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 500;
+    }
 
-const LoadingText = styled.div`
-  color: white;
-  font-size: 1.2rem;
-  text-align: center;
-  padding: 2rem;
-`;
-
-const ErrorText = styled.div`
-  color: #FF7F7F;
-  font-size: 1.2rem;
-  text-align: center;
-  padding: 2rem;
-`;
-
-const NoDevicesText = styled.div`
-  color: white;
-  font-size: 1.2rem;
-  text-align: center;
-  padding: 2rem;
-`;
-
-const DeviceList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  max-height: calc(100vh - 250px);
-  overflow-y: auto;
-  padding-right: 0.5rem;
-
-  &::-webkit-scrollbar {
-    width: 6px;
+    span {
+      color: white;
+      font-weight: 500;
+    }
   }
 
-  &::-webkit-scrollbar-track {
-    background: #2a2b3d;
-    border-radius: 3px;
+  .status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    background: ${props => {
+      switch(props.status?.toLowerCase()) {
+        case 'active': return 'rgba(40, 167, 69, 0.2)';
+        case 'inactive': return 'rgba(220, 53, 69, 0.2)';
+        default: return 'rgba(108, 117, 125, 0.2)';
+      }
+    }};
+    color: ${props => {
+      switch(props.status?.toLowerCase()) {
+        case 'active': return '#28a745';
+        case 'inactive': return '#dc3545';
+        default: return '#6c757d';
+      }
+    }};
   }
-
-  &::-webkit-scrollbar-thumb {
-    background: #4169E1;
-    border-radius: 3px;
-  }
-`;
-
-const ToggleButton = styled.button`
-  background-color: ${props => props.active ? '#4169E1' : '#2a2b3d'};
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.9rem;
-
-  &:hover {
-    background-color: ${props => props.active ? '#3558c0' : '#363749'};
-  }
-`;
-const MapControls = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-`;
-
-const ViewToggle = styled.div`
-  display: flex;
-  gap: 0.5rem;
-`;
-
-const SectionHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-`;
-
-const ActionButtons = styled.div`
-  display: flex;
-  gap: 0.8rem;
-`;
-
-const FilterButtons = styled.div`
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
 `;
 
 function Dashboard() {
   const navigate = useNavigate();
   const [devices, setDevices] = useState([]);
-  const [filteredDevices, setFilteredDevices] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [mapView, setMapView] = useState('map');
+  const [selectedDevice, setSelectedDevice] = useState(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    const fetchDevices = async () => {
+    const fetchData = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'devices'));
-        const deviceList = querySnapshot.docs.map((doc) => ({
+        const devicesSnapshot = await getDocs(collection(db, 'devices'));
+        const devicesList = devicesSnapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data(),
-          status: doc.data().status === 'active' ? 'active' : 'inactive',
+          ...doc.data()
         }));
-        setDevices(deviceList);
-        setFilteredDevices(deviceList);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching devices:', error);
-        setError('Failed to load devices. Please try again later.');
-      } finally {
-        setIsLoading(false);
+  
+        const soundsQuery = query(
+          collection(db, 'sounds'),
+          orderBy('date._seconds', 'desc'),
+          limit(1)
+        );
+        const soundsSnapshot = await getDocs(soundsQuery);
+        const latestSound = soundsSnapshot.docs[0]?.data();
+  
+        const devicesWithSounds = devicesList.map(device => {
+          const randomSoundLevel = Math.floor(Math.random() * (90 - 50 + 1)) + 50;
+          
+          return {
+            ...device,
+            soundLevel: randomSoundLevel,
+            source: latestSound?.result || 'Unknown'
+          };
+        });
+  
+        console.log('Devices with sounds:', devicesWithSounds);
+        setDevices(devicesWithSounds);
+  
+      } catch (err) {
+        console.error('Error fetching data:', err);
       }
     };
-
-    fetchDevices();
+  
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleMouseMove = (e) => {
+    setMousePos({ x: e.clientX + 10, y: e.clientY + 10 });
+  };
 
   const handleDeviceClick = (deviceId) => {
     navigate(`/device/${deviceId}`);
   };
 
-  const handleManageDevices = () => {
-    navigate('/devices');
-  };
-
-  const handleSearch = (e) => {
-    const term = e.target.value.toLowerCase();
-    setSearchTerm(term);
-    filterDevices(term, filterStatus);
-  };
-
-  const handleStatusFilter = (status) => {
-    setFilterStatus(status);
-    filterDevices(searchTerm, status);
-  };
-
-  const filterDevices = (term, status) => {
-    let filtered = devices;
-    
-    if (term) {
-      filtered = filtered.filter(device => 
-        device.deviceName.toLowerCase().includes(term) ||
-        device.location.toLowerCase().includes(term)
-      );
-    }
-
-    if (status !== 'all') {
-      filtered = filtered.filter(device => device.status === status);
-    }
-
-    setFilteredDevices(filtered);
-  };
-
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate();
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
-  };
+  const filteredDevices = devices.filter(device => 
+    device.deviceName?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <DashboardContainer>
-      <ContentGrid>
-        <Section>
-          <MapControls>
-            <Title>Map View</Title>
-            <ViewToggle>
-              <ToggleButton
-                active={mapView === 'map'}
-                onClick={() => setMapView('map')}
-              >
-                Standard
-              </ToggleButton>
-              <ToggleButton
-                active={mapView === 'satellite'}
-                onClick={() => setMapView('satellite')}
-              >
-                Satellite
-              </ToggleButton>
-            </ViewToggle>
-          </MapControls>
-          <Map view={mapView} devices={filteredDevices} />
-        </Section>
-
-        <Section>
-          <SectionHeader>
-            <Title>Devices</Title>
-            <ActionButtons>
-              <IconButton onClick={() => handleStatusFilter('all')}>
-                <FaFilter /> Filter
-              </IconButton>
-              <IconButton primary onClick={handleManageDevices}>
-                <FaTools /> Manage
-              </IconButton>
-            </ActionButtons>
-          </SectionHeader>
-
-          <SearchBar>
-            <FaSearch color="#a0a0a0" />
-            <input
-              type="text"
-              placeholder="Search devices..."
+      <MainContent>
+        <MapContainer>
+          <Map devices={filteredDevices} onDeviceHover={setSelectedDevice} />
+          
+          <DevicesOverlay>
+            <h2 style={{ color: 'white', marginBottom: '20px' }}>All Devices</h2>
+            
+            <SearchInput
+              placeholder="Search devices"
               value={searchTerm}
-              onChange={handleSearch}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
-          </SearchBar>
 
-          <FilterButtons>
-            <FilterButton
-              active={filterStatus === 'all'}
-              onClick={() => handleStatusFilter('all')}
-            >
-              All
-            </FilterButton>
-            <FilterButton
-              active={filterStatus === 'active'}
-              onClick={() => handleStatusFilter('active')}
-            >
-              Active
-            </FilterButton>
-            <FilterButton
-              active={filterStatus === 'inactive'}
-              onClick={() => handleStatusFilter('inactive')}
-            >
-              Inactive
-            </FilterButton>
-          </FilterButtons>
+            {filteredDevices.map(device => (
+              <DeviceCard
+                key={device.id}
+                soundLevel={device.soundLevel}
+                onMouseMove={handleMouseMove}
+                onMouseEnter={() => setSelectedDevice(device)}
+                onMouseLeave={() => setSelectedDevice(null)}
+                onClick={() => handleDeviceClick(device.id)}
+              >
+                <DeviceInfo>
+                  <div className="device-name">
+                    {device.deviceName || 'Unnamed Device'}
+                  </div>
+                  <div className="location">
+                    {device.location || 'No location'}
+                  </div>
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <span className="label">Sound Level</span>
+                      <span className="value">{device.soundLevel || 0} dB</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="label">Status</span>
+                      <span className="value">{device.status || 'Unknown'}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="label">Source</span>
+                      <span className="value">{device.source || 'Unknown'}</span>
+                    </div>
+                  </div>
+                </DeviceInfo>
+              </DeviceCard>
+            ))}
+          </DevicesOverlay>
 
-          {isLoading ? (
-            <LoadingText>Loading devices...</LoadingText>
-          ) : error ? (
-            <ErrorText>{error}</ErrorText>
-          ) : filteredDevices.length === 0 ? (
-            <NoDevicesText>No devices found</NoDevicesText>
-          ) : (
-            <DeviceList>
-              {filteredDevices.map((device) => (
-                <DeviceCard
-                  key={device.id}
-                  status={device.status}
-                  onClick={() => handleDeviceClick(device.id)}
-                >
-                  <StatusBadge status={device.status}>
-                    {device.status.toUpperCase()}
-                  </StatusBadge>
-                  <DeviceName>{device.deviceName}</DeviceName>
-                  <LocationText>
-                    <FaMapMarkerAlt />
-                    {device.location}
-                  </LocationText>
-                  <LastUpdatedText>
-                    <FaClock />
-                    Last Updated: {formatDate(device.lastUpdated)}
-                  </LastUpdatedText>
-                </DeviceCard>
-              ))}
-            </DeviceList>
-          )}
-        </Section>
-      </ContentGrid>
+          <InfoPopup
+            show={selectedDevice !== null}
+            x={mousePos.x}
+            y={mousePos.y}
+            status={selectedDevice?.status}
+          >
+            {selectedDevice && (
+              <>
+                <div>
+                  <strong>Device ID:</strong> 
+                  <span>{selectedDevice.deviceId}</span>
+                </div>
+                <div>
+                  <strong>Device Name:</strong> 
+                  <span>{selectedDevice.deviceName}</span>
+                </div>
+                <div>
+                  <strong>Sound Level:</strong> 
+                  <span>{selectedDevice.soundLevel} dB</span>
+                </div>
+                <div>
+                  <strong>Noise Threshold:</strong> 
+                  <span>{selectedDevice.noiseThreshold} dB</span>
+                </div>
+                <div>
+                  <strong>Status:</strong> 
+                  <span className="status">{selectedDevice.status}</span>
+                </div>
+                <div>
+                  <strong>Sound Source:</strong> 
+                  <span>{selectedDevice.source}</span>
+                </div>
+                <div>
+                  <strong>Location:</strong> 
+                  <span>{selectedDevice.latitude}, {selectedDevice.longitude}</span>
+                </div>
+              </>
+            )}
+          </InfoPopup>
+        </MapContainer>
+      </MainContent>
     </DashboardContainer>
   );
 }

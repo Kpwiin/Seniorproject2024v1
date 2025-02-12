@@ -6,13 +6,13 @@ import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
 
 const Container = styled.div`
-  background-color: #1a1b2e;
+  background-color: #121212;
   min-height: 100vh;
   padding: 2rem;
 `;
 
 const Title = styled.h1`
-  color: #4169E1;
+  color: #FFFFFF;
   text-align: center;
   font-size: 2.5rem;
   margin-bottom: 3rem;
@@ -21,19 +21,20 @@ const Title = styled.h1`
 const FormContainer = styled.form`
   max-width: 800px;
   margin: 0 auto;
-  background-color: #242538;
+  background-color: #1E1E1E;
   padding: 2rem;
   border-radius: 15px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
+  border: 1px solid #333;
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 2rem; /* เพิ่มระยะห่างระหว่างกลุ่มฟอร์ม */
+  margin-bottom: 2rem;
 `;
 
 const Label = styled.label`
   display: block;
-  color: white;
+  color: #E0E0E0;
   margin-bottom: 0.5rem;
   font-size: 1rem;
 `;
@@ -42,12 +43,19 @@ const Input = styled.input`
   width: 100%;
   padding: 0.8rem;
   border-radius: 8px;
-  border: none;
-  background-color: white;
+  border: 1px solid #333;
+  background-color: #2D2D2D;
+  color: #FFFFFF;
   font-size: 1rem;
 
   &::placeholder {
-    color: #999;
+    color: #808080;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #FFFFFF;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
   }
 `;
 
@@ -59,8 +67,8 @@ const ButtonContainer = styled.div`
 `;
 
 const Button = styled.button`
-  background-color: #4169E1;
-  color: white;
+  background-color: #FFFFFF;
+  color: #121212;
   border: none;
   padding: 0.8rem 3rem;
   border-radius: 10px;
@@ -69,45 +77,38 @@ const Button = styled.button`
   transition: all 0.2s;
 
   &:hover {
-    background-color: #3151b0;
+    background-color: #E0E0E0;
     transform: translateY(-2px);
   }
 
   &:disabled {
-    background-color: #3151b0;
+    background-color: #404040;
+    color: #808080;
     cursor: not-allowed;
     opacity: 0.7;
   }
 `;
 
-const MapContainer = styled.div`
-  height: 400px;
-  width: 100%;
-  margin-bottom: 1.5rem;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-`;
-
 const LocationButton = styled.button`
-  background-color: #4169E1;
-  color: white;
+  background-color: #FFFFFF;
+  color: #121212;
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 5px;
-  margin-top: 1rem; /* เพิ่มระยะห่างด้านบน */
-  margin-bottom: 1rem; /* เพิ่มระยะห่างด้านล่าง */
+  margin-top: 1rem;
+  margin-bottom: 1rem;
   cursor: pointer;
   font-size: 1rem;
   transition: all 0.2s;
 
   &:hover {
-    background-color: #3151b0;
+    background-color: #E0E0E0;
     transform: translateY(-2px);
   }
 `;
+
 const ErrorMessage = styled.div`
-  color: #ff4444;
+  color: #FF4444;
   margin-top: 0.5rem;
   font-size: 0.9rem;
 `;
@@ -118,31 +119,44 @@ const LoadingOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   justify-content: center;
   align-items: center;
-  color: white;
+  color: #FFFFFF;
   z-index: 1000;
 `;
 
 const InfoWindowContent = styled.div`
-  color: #333; /* สีข้อความเข้มขึ้น */
-  font-size: 0.9rem; /* ลดขนาดข้อความ */
+  color: #121212;
+  font-size: 0.9rem;
   line-height: 1.4;
   padding: 0.5rem;
-  max-width: 250px; /* จำกัดความกว้างของ InfoWindow */
+  max-width: 250px;
 
   h3 {
     margin: 0 0 0.5rem;
     font-size: 1rem;
-    color: #4169E1; /* สีหัวข้อ */
+    color: #121212;
   }
 
   p {
     margin: 0.2rem 0;
+    color: #333333;
   }
 `;
+
+const MapContainer = styled.div`
+  height: 400px;
+  width: 100%;
+  margin-bottom: 1.5rem;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
+  border: 1px solid #333;
+`;
+
+
 
 function AddDevice() {
   const navigate = useNavigate();

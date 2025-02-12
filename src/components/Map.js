@@ -1,218 +1,216 @@
-// src/components/Map.js
-import React, { useState, useEffect } from 'react';
-import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
-import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { GoogleMap, LoadScript, Marker, OverlayView } from '@react-google-maps/api';
+import styled from 'styled-components';
 
-const mapStyles = {
-  container: {
-    width: '100%',
-    height: '500px',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-    border: '1px solid #eaeaea'
-  },
-  infoWindow: {
-    content: {
-      padding: '20px',
-      borderRadius: '10px',
-      boxShadow: '0 6px 12px rgba(0, 0, 0, 0.1)',
-      backgroundColor: '#fff',
-      maxWidth: '300px',
-      fontFamily: '"Segoe UI", Arial, sans-serif'
-    },
-    header: {
-      margin: '0 0 15px 0',
-      fontWeight: '600',
-      fontSize: '1.3em',
-      color: '#2c3e50',
-      borderBottom: '2px solid #f0f0f0',
-      paddingBottom: '12px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px'
-    },
-    text: {
-      margin: '12px 0',
-      fontSize: '0.95em',
-      color: '#34495e',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px'
-    },
-    status: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '6px 12px',
-      borderRadius: '20px',
-      fontWeight: '500',
-      fontSize: '0.9em',
-      gap: '6px'
-    }
+const MapContainer = styled.div`
+  width: 95%;
+  height: 90vh;
+  margin: 20px auto;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+  position: relative;
+`;
+
+const MarkerTooltip = styled.div`
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 200px;
+  transform: translate(-50%, -130%);
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid rgba(0, 0, 0, 0.85);
   }
-};
 
-const center = {
-  lat: 13.794185,
-  lng: 100.325802
-};
+  .title {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
 
-const markerIcons = {
-  active: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-  inactive: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-};
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 4px 0;
+    align-items: center;
+  }
 
-const Map = () => {
-  const [devices, setDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState(null);
+  .label {
+    color: #999;
+    font-size: 13px;
+  }
 
-  useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'devices'));
-        const deviceList = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setDevices(deviceList);
-      } catch (error) {
-        console.error('Error fetching devices:', error);
-      }
-    };
+  .value {
+    font-weight: 500;
+    color: #fff;
+  }
 
-    fetchDevices();
-  }, []);
+  .sound-level {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+  }
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate();
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+  .sound-high {
+    background-color: rgba(255, 59, 48, 0.2);
+    color: #ff3b30;
+  }
+
+  .sound-medium {
+    background-color: rgba(255, 204, 0, 0.2);
+    color: #ffcc00;
+  }
+
+  .sound-low {
+    background-color: rgba(52, 199, 89, 0.2);
+    color: #34c759;
+  }
+`;
+
+const darkMapStyle = [
+  {
+    "elementType": "geometry",
+    "stylers": [{"color": "#1a1a1a"}]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [{"color": "#1a1a1a"}]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#999999"}]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [{"color": "#333333"}]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text.fill",
+    "stylers": [{"color": "#777777"}]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [{"color": "#000000"}]
+  }
+];
+
+const Map = ({ devices }) => {
+  const [hoveredDevice, setHoveredDevice] = useState(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+
+  const center = {
+    lat: 13.794185,
+    lng: 100.325802
+  };
+
+  const mapOptions = {
+    styles: darkMapStyle,
+    fullscreenControl: false,
+    streetViewControl: false,
+    mapTypeControlOptions: { mapTypeIds: [] },
+    zoomControl: true,
+    zoomControlOptions: {
+      position: mapLoaded && window.google ? window.google.maps.ControlPosition.RIGHT_CENTER : undefined
+    },
+    disableDefaultUI: true,
+    scrollwheel: true,
+    mapTypeControl: false,
+    minZoom: 3,
+    maxZoom: 18
+  };
+
+  const getMarkerIcon = (soundLevel) => {
+    if (soundLevel >= 85) {
+      return 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
+    } else if (soundLevel >= 70) {
+      return 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png';
+    }
+    return 'http://maps.google.com/mapfiles/ms/icons/green-dot.png';
+  };
+
+  const getSoundLevelClass = (soundLevel) => {
+    if (soundLevel >= 85) return 'sound-high';
+    if (soundLevel >= 70) return 'sound-medium';
+    return 'sound-low';
   };
 
   return (
-    <LoadScript googleMapsApiKey="AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
-      <GoogleMap
-        mapContainerStyle={mapStyles.container}
-        center={center}
-        zoom={17}
-        options={{
-          styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }],
-          fullscreenControl: false,
-          streetViewControl: false,
-          mapTypeControlOptions: { mapTypeIds: [] }
-        }}
-      >
-        {devices.map(device => {
-          if (device.latitude && device.longitude) {
-            return (
+    <MapContainer>
+      <LoadScript googleMapsApiKey="AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
+        <GoogleMap
+          mapContainerStyle={{ width: '100%', height: '100%' }}
+          center={center}
+          zoom={17}
+          options={mapOptions}
+        >
+          {devices.map(device => (
+            <React.Fragment key={device.id}>
               <Marker
-                key={device.id}
                 position={{
                   lat: parseFloat(device.latitude),
                   lng: parseFloat(device.longitude)
                 }}
                 icon={{
-                  url: device.status === 'active' ? markerIcons.active : markerIcons.inactive,
-                  scaledSize: new window.google.maps.Size(35, 35)
+                  url: getMarkerIcon(device.soundLevel),
+                  scaledSize: mapLoaded && window.google ? 
+                    new window.google.maps.Size(35, 35) : undefined
                 }}
-                onClick={() => setSelectedDevice(device)}
+                onMouseOver={() => setHoveredDevice(device)}
+                onMouseOut={() => setHoveredDevice(null)}
               />
-            );
-          }
-          return null;
-        })}
-
-{selectedDevice && (
-  <InfoWindow
-    position={{
-      lat: parseFloat(selectedDevice.latitude),
-      lng: parseFloat(selectedDevice.longitude)
-    }}
-    onCloseClick={() => setSelectedDevice(null)}
-  >
-    <div style={mapStyles.infoWindow.content}>
-      <h3 style={mapStyles.infoWindow.header}>
-        <i className="fas fa-microchip" 
-           style={{ 
-             color: '#4a90e2',
-             backgroundColor: '#f8f9fa',
-             padding: '8px',
-             borderRadius: '8px',
-             fontSize: '0.9em'
-           }}
-        ></i>
-        {selectedDevice.deviceName || 'Unknown Device'}
-      </h3>
-
-      <div style={mapStyles.infoWindow.text}>
-        <i className="fas fa-map-marker-alt" 
-           style={{ 
-             color: '#e74c3c',
-             backgroundColor: '#fff5f5',
-             padding: '8px',
-             borderRadius: '8px',
-             fontSize: '0.9em'
-           }}
-        ></i>
-        <div>
-          <div style={{ fontWeight: '500', marginBottom: '4px' }}>Location</div>
-          <div style={{ color: '#666' }}>{selectedDevice.location || 'N/A'}</div>
-        </div>
-      </div>
-
-      <div style={{
-        ...mapStyles.infoWindow.text,
-        backgroundColor: '#f8f9fa',
-        padding: '12px',
-        borderRadius: '8px',
-        margin: '15px 0'
-      }}>
-        <span
-          style={{
-            ...mapStyles.infoWindow.status,
-            backgroundColor: selectedDevice.status === 'active' ? '#e8f5e9' : '#ffebee',
-            color: selectedDevice.status === 'active' ? '#2e7d32' : '#c62828',
-            border: `1px solid ${selectedDevice.status === 'active' ? '#a5d6a7' : '#ef9a9a'}`
-          }}
-        >
-          <i className={`fas fa-${selectedDevice.status === 'active' ? 'check-circle' : 'times-circle'}`}></i>
-          {selectedDevice.status.toUpperCase()}
-        </span>
-      </div>
-
-      <div style={{
-        ...mapStyles.infoWindow.text,
-        marginTop: '15px',
-        fontSize: '0.85em',
-        color: '#666',
-        borderTop: '1px solid #f0f0f0',
-        paddingTop: '15px'
-      }}>
-        <i className="far fa-clock" 
-           style={{ 
-             color: '#7f8c8d',
-             backgroundColor: '#f8f9fa',
-             padding: '8px',
-             borderRadius: '8px',
-             fontSize: '0.9em'
-           }}
-        ></i>
-        <div>
-          <div style={{ fontWeight: '500', marginBottom: '4px' }}>Last Updated</div>
-          <div>{formatDate(selectedDevice.lastUpdated)}</div>
-        </div>
-      </div>
-    </div>
-  </InfoWindow>
-)}
-      </GoogleMap>
-    </LoadScript>
+              
+              {hoveredDevice && hoveredDevice.id === device.id && (
+                <OverlayView
+                  position={{
+                    lat: parseFloat(device.latitude),
+                    lng: parseFloat(device.longitude)
+                  }}
+                  mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                >
+                  <MarkerTooltip>
+                    <div className="title">{device.deviceName}</div>
+                    <div className="info-row">
+                      <span className="label">Location</span>
+                      <span className="value">{device.location}</span>
+                    </div>
+                    <div className="info-row">
+                      <span className="label">Sound Level</span>
+                      <span className={`sound-level ${getSoundLevelClass(device.soundLevel)}`}>
+                        {device.soundLevel} dB
+                      </span>
+                    </div>
+                    <div className="info-row">
+                      <span className="label">Status</span>
+                      <span className="value">{device.status}</span>
+                    </div>
+                  </MarkerTooltip>
+                </OverlayView>
+              )}
+            </React.Fragment>
+          ))}
+        </GoogleMap>
+      </LoadScript>
+    </MapContainer>
   );
 };
 
