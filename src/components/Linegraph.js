@@ -491,6 +491,7 @@ export const LineGraph = () => {
   
   return (
     <div>
+       <h2 style={{ fontSize: '30px' }}>Historical Graph</h2>
       {/* Filter Dropdown */}
       <div style={{ marginBottom: '20px' }}>
         <label htmlFor="time-range">Show data for: </label>

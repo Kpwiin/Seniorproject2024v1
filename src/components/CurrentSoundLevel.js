@@ -33,25 +33,32 @@ const CurrentSoundLevel = () => {
   };
 
   const noiseStatus = currentLevel !== null ? getNoiseStatus(currentLevel) : null;
-
   return (
     <div className="current-sound-level">
       {currentLevel !== null ? (
-        <div>
-          <p><strong>Current Sound Level:</strong> {currentLevel} dB</p>
-          <p><strong>Noise Source:</strong> {noiseStatus.text === "Safe" ? "Unidentify" : classification || 'N/A'}</p>
-          <p>
+        <div className="current-container">
+          <p className="current">
+            <strong>Current Sound Level:</strong>
+            <span style={{ color: noiseStatus.color }}> {currentLevel} dB</span>
+          </p>
+          <p className="status">
             <strong>Status: </strong>
             <span style={{ 
               color: noiseStatus.color, 
-              fontWeight: "bold", 
-              fontSize: "2rem" 
+             
             }}>
               {noiseStatus.text}
             </span>
           </p>
+          <p className="source">
+            <strong>Noise Source: </strong> 
+            <span style={{ color: noiseStatus.color }}>
+              {noiseStatus.text === "Safe" ? "Unidentify" : classification || 'N/A'}
+              
+            </span>
+          </p>
           {audioURL ? (
-            <div>
+            <div className="audio-container">
               <p><strong>Sample:</strong></p>
               <audio controls>
                 <source src={audioURL} type="audio/mp3" />
@@ -59,7 +66,7 @@ const CurrentSoundLevel = () => {
               </audio>
             </div>
           ) : (
-            <p>No audio sample available.</p>
+            <p className="no-audio">No audio sample available.</p>
           )}
         </div>
       ) : (
@@ -67,6 +74,6 @@ const CurrentSoundLevel = () => {
       )}
     </div>
   );
-};
+}  
 
 export default CurrentSoundLevel;
