@@ -264,8 +264,10 @@ function Navbar() {
           const userDoc = await getDoc(doc(db, 'UserInfo', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            console.log('User Data:', userData);
-            setUserProfile(userData);
+            setUserProfile({
+              ...userData,
+              username: userData.username || currentUser.email.split('@')[0]
+            });
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
@@ -331,7 +333,7 @@ function Navbar() {
           onClick={handleMenuClick('/classification')}
         >
           <FaList />
-          <span>Manual Classification</span>
+          <span>Classification</span>
         </MenuItem>
         
         <MenuItem 
@@ -379,14 +381,14 @@ function Navbar() {
             <UserProfile>
               <div>
                 <div className="username">
-                  {userProfile?.displayName || user?.email || 'User'}
+                  {userProfile?.username || user?.email.split('@')[0] || 'User'}
                 </div>
                 <div className="role">
                   {userProfile?.role === 'admin' ? 'Administrator' : 'User'}
                 </div>
               </div>
               <UserAvatar>
-                {getInitials(userProfile?.displayName)}
+                {getInitials(userProfile?.username || user?.email.split('@')[0])}
               </UserAvatar>
             </UserProfile>
           </UserInfo>

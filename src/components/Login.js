@@ -1,172 +1,184 @@
-// src/components/Login.js
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 
 const Container = styled.div`
-  background-color: #1a1b2e;
+  background: #0A0A0A;
   min-height: 100vh;
-  padding: 2rem;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  position: fixed;
+  padding: 20px;
+`;
+
+const LoginCard = styled.div`
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 40px;
   width: 100%;
-  top: 0;
-  left: 0;
-  z-index: 9999;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+`;
+
+const LogoContainer = styled.div`
+  text-align: center;
+  margin-bottom: 40px;
 `;
 
 const Logo = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 2rem;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  position: relative;
   
-  span {
-    color: #4169E1;
-    font-size: 2rem;
-    font-weight: bold;
-    margin-left: 1rem;
+  &::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, #4169E1, #6495ED);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
   }
-`;
 
-const LogoIcon = styled.div`
-  width: 40px;
-  height: 40px;
-  border: 2px solid #4169E1;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  div {
-    width: 24px;
-    height: 24px;
-    background-color: #4169E1;
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    background: white;
     border-radius: 50%;
   }
+
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+  }
 `;
 
-const FormContainer = styled.form`
-  width: 100%;
-  max-width: 400px;
+const BrandName = styled.h1`
+  color: white;
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.5px;
 `;
 
-const Title = styled.h1`
-  color: #4169E1;
-  text-align: center;
-  font-size: 2rem;
-  margin-bottom: 2rem;
+const InputGroup = styled.div`
+  position: relative;
+  margin-bottom: 24px;
 `;
 
-const FormGroup = styled.div`
-  margin-bottom: 1.5rem;
+const InputIcon = styled.div`
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6495ED;
+  font-size: 20px;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid #4169E1;
-  background-color: rgba(255, 255, 255, 0.1);
+  padding: 16px 16px 16px 48px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   color: white;
-  
-  &::placeholder {
-    color: rgba(65, 105, 225, 0.7);
-  }
-  
+  font-size: 16px;
+  transition: all 0.3s ease;
+
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(65, 105, 225, 0.3);
+    border-color: #4169E1;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 4px rgba(65, 105, 225, 0.1);
   }
-`;
 
-const PasswordContainer = styled.div`
-  position: relative;
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
 `;
 
 const PasswordToggle = styled.button`
   position: absolute;
-  right: 1rem;
+  right: 16px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #4169E1;
+  color: #6495ED;
   cursor: pointer;
-`;
+  padding: 0;
+  font-size: 20px;
+  transition: color 0.3s ease;
 
-const ForgotPassword = styled.div`
-  text-align: right;
-  margin-bottom: 1.5rem;
-  
-  a {
-    color: #4169E1;
-    text-decoration: none;
-    font-size: 0.9rem;
-    
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-`;
-
-const Button = styled.button`
-  width: 100%;
-  padding: 1rem;
-  background-color: #4169E1;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  cursor: pointer;
-  
   &:hover {
-    background-color: #3151b0;
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-`;
-
-const ErrorMessage = styled.div`
-  color: #ff4444;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-`;
-
-const LoadingOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  z-index: 1000;
-`;
-
-const RegisterLink = styled.div`
-  text-align: center;
-  margin-top: 1.5rem;
-  color: white;
-  
-  a {
     color: #4169E1;
+  }
+`;
+
+const ForgotPassword = styled.a`
+  display: block;
+  color: #6495ED;
+  text-decoration: none;
+  font-size: 14px;
+  text-align: right;
+  margin: -12px 0 32px;
+  transition: color 0.3s ease;
+
+  &:hover {
+    color: #4169E1;
+  }
+`;
+
+const LoginButton = styled.button`
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(45deg, #4169E1, #6495ED);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 24px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(65, 105, 225, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const RegisterPrompt = styled.div`
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+
+  a {
+    color: #6495ED;
     text-decoration: none;
-    margin-left: 0.5rem;
-    
+    font-weight: 500;
+    margin-left: 8px;
+    transition: color 0.3s ease;
+
     &:hover {
-      text-decoration: underline;
+      color: #4169E1;
     }
   }
 `;
@@ -178,7 +190,6 @@ function Login() {
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
@@ -187,80 +198,58 @@ function Login() {
       ...prev,
       [name]: value
     }));
-    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.email || !formData.password) {
-      setError('Please fill in all fields');
-      return;
-    }
-
-    setIsLoading(true);
-
     try {
-      // 1. ล็อกอินด้วย Firebase Auth
       const userCredential = await signInWithEmailAndPassword(
         auth, 
         formData.email, 
         formData.password
       );
 
-      // 2. ดึงข้อมูล role จาก Firestore
       const userDoc = await getDoc(doc(db, 'UserInfo', userCredential.user.uid));
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        
-        // 3. นำทางไปยังหน้าที่เหมาะสมตาม role
         if (userData.role === 'admin') {
           navigate('/dashboard');
         } else {
-          navigate('/'); // หรือหน้าอื่นๆ สำหรับ user ปกติ
+          navigate('/dashboard');
         }
-      } else {
-        setError('User data not found');
       }
     } catch (error) {
-      console.error("Login error:", error);
       setError('Invalid email or password');
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
     <Container>
-      {isLoading && (
-        <LoadingOverlay>
-          <div>Signing in...</div>
-        </LoadingOverlay>
-      )}
+      <LoginCard>
+        <LogoContainer>
+          <Logo />
+          <BrandName>Soundwave</BrandName>
+        </LogoContainer>
 
-      <Logo>
-        <LogoIcon>
-          <div />
-        </LogoIcon>
-        <span>Silence</span>
-      </Logo>
+        <form onSubmit={handleSubmit}>
+          <InputGroup>
+            <InputIcon>
+              <FiMail />
+            </InputIcon>
+            <Input
+              type="text"
+              name="email"
+              placeholder="Email or username"
+              value={formData.email}
+              onChange={handleChange}
+            />
+          </InputGroup>
 
-      <FormContainer onSubmit={handleSubmit}>
-        <Title>Sign in</Title>
-
-        <FormGroup>
-          <Input
-            type="text"
-            name="email"
-            placeholder="Enter email or user name"
-            value={formData.email}
-            onChange={handleChange}
-          />
-        </FormGroup>
-
-        <FormGroup>
-          <PasswordContainer>
+          <InputGroup>
+            <InputIcon>
+              <FiLock />
+            </InputIcon>
             <Input
               type={showPassword ? "text" : "password"}
               name="password"
@@ -272,29 +261,24 @@ function Login() {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
             >
-              {showPassword ? "👁️" : "👁️‍🗨️"}
+              {showPassword ? <FiEyeOff /> : <FiEye />}
             </PasswordToggle>
-          </PasswordContainer>
-        </FormGroup>
+          </InputGroup>
 
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+          <ForgotPassword href="/forgot-password">
+            Forgot password?
+          </ForgotPassword>
 
-        <ForgotPassword>
-          <a href="/forgot-password">Forgot password?</a>
-        </ForgotPassword>
+          <LoginButton type="submit">
+            Sign in
+          </LoginButton>
 
-        <Button 
-          type="submit" 
-          disabled={isLoading}
-        >
-          {isLoading ? 'Signing in...' : 'Login'}
-        </Button>
-
-        <RegisterLink>
-          Don't have an account?
-          <a href="/register">Sign up</a>
-        </RegisterLink>
-      </FormContainer>
+          <RegisterPrompt>
+            Don't have an account?
+            <a href="/register">Sign up</a>
+          </RegisterPrompt>
+        </form>
+      </LoginCard>
     </Container>
   );
 }

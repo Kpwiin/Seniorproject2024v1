@@ -1,119 +1,150 @@
-// src/components/Register.js
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebase'; // Import db for Firestore
+import { auth, db } from '../firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore'; // Use setDoc instead of addDoc for specific document ID
+import { doc, setDoc } from 'firebase/firestore';
 import { ADMIN_EMAILS } from '../config/adminConfig';
+import { FiMail, FiUser, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 
-// Styled components
 const Container = styled.div`
-  background-color: #1a1b2e;
+  background: #0A0A0A;
   min-height: 100vh;
-  padding: 2rem;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  position: fixed;
+  padding: 20px;
+`;
+
+const RegisterCard = styled.div`
+  background: rgba(22, 22, 22, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 40px;
   width: 100%;
-  top: 0;
-  left: 0;
-  z-index: 9999;
+  max-width: 420px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+`;
+
+const LogoContainer = styled.div`
+  text-align: center;
+  margin-bottom: 32px;
 `;
 
 const Logo = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 2rem;
-
-  span {
-    color: #4169e1;
-    font-size: 2rem;
-    font-weight: bold;
-    margin-left: 1rem;
-  }
-`;
-
-const LogoIcon = styled.div`
-  width: 40px;
-  height: 40px;
-  border: 2px solid #4169e1;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  background: #4169E1;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 
-  div {
-    width: 24px;
-    height: 24px;
-    background-color: #4169e1;
+  &::after {
+    content: '';
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    background: white;
     border-radius: 50%;
   }
 `;
 
-const FormContainer = styled.form`
-  width: 100%;
-  max-width: 400px;
+const BrandName = styled.h1`
+  color: white;
+  font-size: 24px;
+  margin: 0;
 `;
 
-const Title = styled.h1`
-  color: #4169e1;
-  text-align: center;
-  font-size: 2rem;
-  margin-bottom: 2rem;
+const InputGroup = styled.div`
+  position: relative;
+  margin-bottom: 16px;
 `;
 
-const FormGroup = styled.div`
-  margin-bottom: 1.5rem;
+const InputIcon = styled.div`
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  font-size: 20px;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid #4169e1;
-  background-color: rgba(255, 255, 255, 0.1);
+  padding: 16px 16px 16px 48px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   color: white;
-
-  &::placeholder {
-    color: rgba(65, 105, 225, 0.7);
-  }
+  font-size: 14px;
 
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(65, 105, 225, 0.3);
+    border-color: #4169E1;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &::placeholder {
+    color: #666;
   }
 `;
 
-const Button = styled.button`
-  width: 100%;
-  padding: 1rem;
-  background-color: #4169e1;
-  color: white;
+const PasswordToggle = styled.button`
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
   border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
+  color: #666;
   cursor: pointer;
+  padding: 0;
+  font-size: 20px;
+`;
+
+const RegisterButton = styled.button`
+  width: 100%;
+  padding: 16px;
+  background: #4169E1;
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin: 24px 0 16px;
+  transition: background 0.3s ease;
 
   &:hover {
-    background-color: #3151b0;
+    background: #3151b0;
   }
+`;
 
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+const LoginPrompt = styled.div`
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+
+  a {
+    color: #4169E1;
+    text-decoration: none;
+    margin-left: 8px;
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 `;
 
 const ErrorMessage = styled.div`
   color: #ff4444;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
+  font-size: 14px;
+  margin-top: 8px;
 `;
 
-// Register Component
 function Register() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -122,148 +153,142 @@ function Register() {
     password: '',
     confirmPassword: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       [name]: value
     }));
     setError('');
   };
 
-  const validateForm = () => {
-    if (
-      !formData.email ||
-      !formData.username ||
-      !formData.password ||
-      !formData.confirmPassword
-    ) {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!formData.email || !formData.username || !formData.password || !formData.confirmPassword) {
       setError('Please fill in all fields');
-      return false;
-    }
-
-    if (!formData.email.includes('@')) {
-      setError('Please enter a valid email address');
-      return false;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return false;
+      return;
     }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
-      return false;
+      return;
     }
 
-    return true;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-  
-    if (!validateForm()) return;
-  
-    setIsLoading(true);
-  
     try {
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
-  
+
       await updateProfile(userCredential.user, {
         displayName: formData.username
       });
-  
-      const userId = userCredential.user.uid;
-      
-      // ตรวจสอบว่า email อยู่ใน admin list หรือไม่
+
       const isAdmin = ADMIN_EMAILS.includes(formData.email.toLowerCase());
       
-      await setDoc(doc(db, 'UserInfo', userId), {
+      await setDoc(doc(db, 'UserInfo', userCredential.user.uid), {
         email: formData.email,
         username: formData.username,
         role: isAdmin ? 'admin' : 'user'
       });
-  
-      // นำทางไปยังหน้าที่เหมาะสมตาม role
-      if (isAdmin) {
-        navigate('/dashboard');
-      } else {
-        navigate('/');
-      }
+
+      navigate(isAdmin ? '/dashboard' : '/dashboard');
     } catch (error) {
-      console.error('Registration error:', error);
       setError(error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
     <Container>
-      <Logo>
-        <LogoIcon>
-          <div />
-        </LogoIcon>
-        <span>Silence</span>
-      </Logo>
+      <RegisterCard>
+        <LogoContainer>
+          <Logo />
+          <BrandName>Soundwave</BrandName>
+        </LogoContainer>
 
-      <FormContainer onSubmit={handleSubmit}>
-        <Title>Sign Up</Title>
+        <form onSubmit={handleSubmit}>
+          <InputGroup>
+            <InputIcon>
+              <FiMail />
+            </InputIcon>
+            <Input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={formData.email}
+              onChange={handleChange}
+            />
+          </InputGroup>
 
-        <FormGroup>
-          <Input
-            type="email"
-            name="email"
-            placeholder="Enter Email"
-            value={formData.email}
-            onChange={handleChange}
-          />
-        </FormGroup>
+          <InputGroup>
+            <InputIcon>
+              <FiUser />
+            </InputIcon>
+            <Input
+              type="text"
+              name="username"
+              placeholder="Username"
+              value={formData.username}
+              onChange={handleChange}
+            />
+          </InputGroup>
 
-        <FormGroup>
-          <Input
-            type="text"
-            name="username"
-            placeholder="Create Username"
-            value={formData.username}
-            onChange={handleChange}
-          />
-        </FormGroup>
+          <InputGroup>
+            <InputIcon>
+              <FiLock />
+            </InputIcon>
+            <Input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={handleChange}
+            />
+            <PasswordToggle
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <FiEyeOff /> : <FiEye />}
+            </PasswordToggle>
+          </InputGroup>
 
-        <FormGroup>
-          <Input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={formData.password}
-            onChange={handleChange}
-          />
-        </FormGroup>
+          <InputGroup>
+            <InputIcon>
+              <FiLock />
+            </InputIcon>
+            <Input
+              type={showConfirmPassword ? "text" : "password"}
+              name="confirmPassword"
+              placeholder="Confirm Password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+            />
+            <PasswordToggle
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              {showConfirmPassword ? <FiEyeOff /> : <FiEye />}
+            </PasswordToggle>
+          </InputGroup>
 
-        <FormGroup>
-          <Input
-            type="password"
-            name="confirmPassword"
-            placeholder="Confirm Password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-          />
-        </FormGroup>
+          {error && <ErrorMessage>{error}</ErrorMessage>}
 
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+          <RegisterButton type="submit">
+            Sign up
+          </RegisterButton>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Creating Account...' : 'Register'}
-        </Button>
-      </FormContainer>
+          <LoginPrompt>
+            Already have an account?
+            <a href="/login">Sign in</a>
+          </LoginPrompt>
+        </form>
+      </RegisterCard>
     </Container>
   );
 }

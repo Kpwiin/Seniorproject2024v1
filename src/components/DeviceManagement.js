@@ -33,12 +33,12 @@ const Tab = styled.span`
     color: #1a75ff;
   }
 `;
-
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   color: white;
   table-layout: fixed;
+  background: #1a1a1a;
 `;
 
 const Th = styled.th`
@@ -47,12 +47,6 @@ const Th = styled.th`
   border-bottom: 1px solid #333;
   color: #999;
   font-weight: normal;
-  &:nth-child(1) { width: 150px; }
-  &:nth-child(2) { width: 80px; }
-  &:nth-child(3) { width: 300px; }
-  &:nth-child(4) { width: 100px; }
-  &:nth-child(5) { width: 100px; }
-  &:nth-child(6) { width: 70px; }
 `;
 
 const Td = styled.td`
@@ -61,6 +55,13 @@ const Td = styled.td`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
+`;
+
+const TableRow = styled.tr`
+  &:hover {
+    background-color: rgba(26, 117, 255, 0.1);
+  }
 `;
 
 const LocationCell = styled(Td)`
@@ -82,17 +83,21 @@ const LocationCell = styled(Td)`
 `;
 
 const StatusBadge = styled.span`
-  color: ${props => props.active ? '#4CAF50' : '#f44336'};
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center; // เพิ่มเพื่อจัดให้อยู่กึ่งกลาง
+  gap: 8px;
+  
   &::before {
-    content: '●';
-    margin-right: 5px;
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: ${props => props.active ? '#4CAF50' : '#f44336'};
+    margin-bottom: 1px; // ปรับให้จุดอยู่ในแนวเดียวกับตัวอักษร
   }
-  transition: all 0.3s ease;
-
-  &:hover {
-    opacity: 0.8;
-  }
+  color: ${props => props.active ? '#4CAF50' : '#f44336'};
 `;
 
 const SettingsIcon = styled(FiSettings)`
@@ -205,42 +210,42 @@ function DeviceManagement() {
         <NoDevicesMessage>No devices found</NoDevicesMessage>
       ) : (
         <Table>
-          <thead>
-            <tr>
-              <Th>Device name</Th>
-              <Th>Device ID</Th>
-              <Th>Location</Th>
-              <Th>Date added</Th>
-              <Th>Status</Th>
-              <Th>Setting</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {devices.map((device) => (
-              <tr key={device.id}>
-                <Td>{device.deviceName}</Td>
-                <Td>{device.deviceId}</Td>
-                <LocationCell data-location={device.location}>
-                  {device.location}
-                </LocationCell>
-                <Td>
-                  {device.createdAt ? new Date(device.createdAt.toDate()).toLocaleDateString() : 'N/A'}
-                </Td>
-                <Td>
-                  <StatusBadge 
-                    active={device.status === 'Active'}
-                    onClick={() => handleStatusToggle(device.id, device.status)}
-                  >
-                    {device.status}
-                  </StatusBadge>
-                </Td>
-                <Td>
-                  <SettingsIcon onClick={() => handleSettingsClick(device.id)} />
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+  <thead>
+    <tr>
+      <Th style={{ width: '20%', textAlign: 'center' }}>Device name</Th>
+      <Th style={{ width: '8%', textAlign: 'center' }}>Device ID</Th>
+      <Th style={{ width: '42%' }}>Location</Th>
+      <Th style={{ width: '10%', textAlign: 'center' }}>Date added</Th>
+      <Th style={{ width: '12%', textAlign: 'center' }}>Status</Th>
+      <Th style={{ width: '8%', textAlign: 'center' }}>Setting</Th>
+    </tr>
+  </thead>
+  <tbody>
+    {devices.map((device) => (
+      <TableRow key={device.id}>
+        <Td style={{ textAlign: 'center' }}>{device.deviceName}</Td>
+        <Td style={{ textAlign: 'center' }}>{device.deviceId}</Td>
+        <LocationCell data-location={device.location}>
+          {device.location}
+        </LocationCell>
+        <Td style={{ textAlign: 'center' }}>
+          {device.createdAt ? new Date(device.createdAt.toDate()).toLocaleDateString() : 'N/A'}
+        </Td>
+        <Td style={{ textAlign: 'center' }}>
+          <StatusBadge 
+            active={device.status === 'Active'}
+            onClick={() => handleStatusToggle(device.id, device.status)}
+          >
+            {device.status === 'Active' ? 'Active' : 'Inactive'}
+          </StatusBadge>
+        </Td>
+        <Td style={{ textAlign: 'center' }}>
+          <SettingsIcon onClick={() => handleSettingsClick(device.id)} />
+        </Td>
+      </TableRow>
+    ))}
+  </tbody>
+</Table>
       )}
     </Container>
   );

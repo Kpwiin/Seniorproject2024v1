@@ -1,104 +1,104 @@
 body, html {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    background-color: black;
-    color: white;
-    text-align: center;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: black;
+  color: white;
+  text-align: center;
+}
+
+body h1{
+  color: #3833ce;
+  text-align: center;
+  margin-top: 100px;
+  margin-bottom: 20px;
+}
+  
+.add-complaint-form {
+    text-align: left;
+    max-width: 500px;
+    margin: auto;
+    padding: 20px;
+    padding-left: 40px;
+    padding-right: 40px;
+    background-color: #2c2c2c; 
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+  
+.add-complaint-form div {
+    margin-bottom: 15px;
+}
+.add-complaint-form label {
+    display: block;  /* Ensures the label stays on top */
+    margin-bottom: 5px; 
   }
   
-  body h1{
-    color: #3833ce;
-    text-align: center;
-    margin-top: 100px;
-    margin-bottom: 20px;
-  }
-    
-  .add-complaint-form {
-      text-align: left;
-      max-width: 500px;
-      margin: auto;
-      padding: 20px;
-      padding-left: 40px;
-      padding-right: 40px;
-      background-color: #2c2c2c; 
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-    
-  .add-complaint-form div {
-      margin-bottom: 15px;
-  }
-  .add-complaint-form label {
-      display: block;  /* Ensures the label stays on top */
-      margin-bottom: 5px; 
-    }
-    
-  .add-complaint-form input{
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 16px;
-      max-width: 100%;
+.add-complaint-form input{
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    max-width: 100%;
+}
+
+.add-complaint-form textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    max-width: 100%;
+    height: 150px;  
+    resize: vertical;  /* Allow the user to resize the height of the textarea */
   }
   
-  .add-complaint-form textarea {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 16px;
-      max-width: 100%;
-      height: 150px;  
-      resize: vertical;  /* Allow the user to resize the height of the textarea */
-    }
-    
-    
-  .add-complaint-form select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 16px;
-      max-width: 38%;
-      text-align: left;
-      cursor: pointer;
-      
-  }
   
-  .add-complaint-form button {
-      margin-top: 20px;
-      padding: 10px;
-      background-color: #3833ce;
-      color: white;
-      font-size: 14px;
-      border: none;
-      border-radius: 7px;
-      width: 80%;
-      max-width: 35%;  
-      display: block;  
-      margin-left: auto;  
-      cursor: pointer;
-     
-    }
-    
-    
-  .error {
-      color: red;
-      font-size: 14px;
-      margin-top: 10px;
-  }
-  
-  .back-button {
-    margin-top: 25px;
-    margin-bottom: 20px;
-    padding: 12px 22px;
-    border: none;
-    background-color:#3833ce;
-    color: white;
+.add-complaint-form select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    max-width: 38%;
+    text-align: left;
     cursor: pointer;
-    border-radius: 10px;
-  }
     
+}
+
+.add-complaint-form button {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #3833ce;
+    color: white;
+    font-size: 14px;
+    border: none;
+    border-radius: 7px;
+    width: 80%;
+    max-width: 35%;  
+    display: block;  
+    margin-left: auto;  
+    cursor: pointer;
+   
+  }
+  
+  
+.error {
+    color: red;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+.back-button {
+  margin-top: 25px;
+  margin-bottom: 20px;
+  padding: 12px 22px;
+  border: none;
+  background-color:#3833ce;
+  color: white;
+  cursor: pointer;
+  border-radius: 10px;
+}
+  
     

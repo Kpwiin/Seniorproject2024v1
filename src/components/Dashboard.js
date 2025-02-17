@@ -255,7 +255,7 @@ function Dashboard() {
     };
   
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 300000);
     return () => clearInterval(interval);
   }, []);
 
