@@ -263,8 +263,15 @@ function Dashboard() {
     setMousePos({ x: e.clientX + 10, y: e.clientY + 10 });
   };
 
-  const handleDeviceClick = (deviceId) => {
-    navigate(`/device/${deviceId}`);
+  const handleDeviceClick = (deviceId, deviceName) => {
+    // Check if deviceName exists
+    if (!deviceName) {
+      console.error("Device name is missing!");
+    } else {
+      // Use encodeURIComponent to ensure deviceName with special characters is correctly passed in the URL
+      const encodedDeviceName = encodeURIComponent(deviceName);
+      navigate(`/device/${deviceId}/${encodedDeviceName}`);
+    }
   };
 
   const filteredDevices = devices.filter(device => 
@@ -293,7 +300,7 @@ function Dashboard() {
                 onMouseMove={handleMouseMove}
                 onMouseEnter={() => setSelectedDevice(device)}
                 onMouseLeave={() => setSelectedDevice(null)}
-                onClick={() => handleDeviceClick(device.id)}
+                onClick={() => handleDeviceClick(device.id, device.deviceName)}  
               >
                 <DeviceInfo>
                   <div className="device-name">

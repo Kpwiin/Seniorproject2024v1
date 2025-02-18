@@ -106,7 +106,7 @@ function Complaint() {
                   <span className="added-date-time"> ({format(complaint.timestamp, 'd MMMM yyyy, HH:mm')})</span>
                 </p>
                 <p><strong>Location: <span className="location">{complaint.location}</span></strong></p>
-                <p className="status">
+                <p className="com-status">
                   <strong>Status: 
                     {complaint.status ? 
                      <span className="verified"> Verified</span> : 

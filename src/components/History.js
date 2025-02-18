@@ -184,7 +184,7 @@ export const History = () => {
               left: 12, // Enhanced padding for better content balance
             },
             xAdjust: 0,
-            yAdjust: -240,
+            yAdjust: -200,
           },
         },
       },
@@ -232,7 +232,7 @@ export const History = () => {
   const uniqueMonths = [...new Set(months)];
 
   return (
-    <div className="history-container2">
+    <div className="history-container">
       <h2 style={{ fontSize: '30px' }}>History</h2>
 
       {/* Dropdown for selecting month */}
@@ -342,7 +342,7 @@ export const History = () => {
                                 hour12: false,
                               })}
                             </span>
-                             {level} dB - Classification result: <strong> {selectedResults[idx] || 'N/A'} </strong>
+                             {level} dB - Source: <strong> {selectedResults[idx] || 'N/A'} </strong>
                           </li>
                         );
                       }

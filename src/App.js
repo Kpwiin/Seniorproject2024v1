@@ -44,7 +44,7 @@ function App() {
           <Route path="/settings" element={<Layout><ProfileSettings /></Layout>} />
           <Route path="/classification" element={<Layout><Classification /></Layout>} />
           <Route path="/" element={<Layout><Userdevicelist /></Layout>} />
-          <Route path="/device/:id" element={<Layout><DeviceDetail /></Layout>} />
+          <Route path="/device/:deviceId/:deviceName" element={<Layout><DeviceDetail /></Layout>} />
           <Route path="/device/:id/edit" element={<Layout><EditDevice /></Layout>} />
         </Routes>
       </div>
