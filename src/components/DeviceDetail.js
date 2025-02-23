@@ -7,7 +7,7 @@ import { useParams } from 'react-router-dom';
 import { Link } from "react-router-dom";
 
 function DeviceDetail() {
-  const {deviceName} = useParams();  
+  const {deviceId,deviceName} = useParams();  
   const decodedDeviceName = decodeURIComponent(deviceName);
   return (
     <div className="Device-Detail">
@@ -25,7 +25,8 @@ function DeviceDetail() {
         </nav>
       </div>
         <div id="current" className="current-container">
-          <CurrentSoundLevel />
+        <CurrentSoundLevel deviceId={deviceId} />
+
         </div>
         <div id="graph" className="graph-container">
           <LineGraph />

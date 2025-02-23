@@ -224,7 +224,7 @@ function Dashboard() {
       try {
         const devicesSnapshot = await getDocs(collection(db, 'devices'));
         const devicesList = devicesSnapshot.docs.map(doc => ({
-          id: doc.id,
+          deviceId: doc.data().deviceId, 
           ...doc.data()
         }));
   
@@ -264,15 +264,14 @@ function Dashboard() {
   };
 
   const handleDeviceClick = (deviceId, deviceName) => {
-    // Check if deviceName exists
     if (!deviceName) {
       console.error("Device name is missing!");
     } else {
-      // Use encodeURIComponent to ensure deviceName with special characters is correctly passed in the URL
       const encodedDeviceName = encodeURIComponent(deviceName);
       navigate(`/device/${deviceId}/${encodedDeviceName}`);
     }
   };
+  
 
   const filteredDevices = devices.filter(device => 
     device.deviceName?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -295,12 +294,12 @@ function Dashboard() {
 
             {filteredDevices.map(device => (
               <DeviceCard
-                key={device.id}
+                key={device.deviceId}
                 soundLevel={device.soundLevel}
                 onMouseMove={handleMouseMove}
                 onMouseEnter={() => setSelectedDevice(device)}
                 onMouseLeave={() => setSelectedDevice(null)}
-                onClick={() => handleDeviceClick(device.id, device.deviceName)}  
+                onClick={() => handleDeviceClick(device.deviceId, device.deviceName)}
               >
                 <DeviceInfo>
                   <div className="device-name">
