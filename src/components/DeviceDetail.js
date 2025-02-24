@@ -29,10 +29,10 @@ function DeviceDetail() {
 
         </div>
         <div id="graph" className="graph-container">
-          <LineGraph />
+          <LineGraph deviceId={deviceId} />
         </div>
         <div id="history" className="history-container">
-          <History />
+          <History deviceId={deviceId} />
         </div>
       </div>
     </div>

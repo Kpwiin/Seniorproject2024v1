@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 import {db} from '../firebase';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, Filler, registerables } from 'chart.js';
 
 ChartJS.register(Filler, ...registerables);
 
-export const History = () => {
+export const History = ({ deviceId }) => {
   const [historyData, setHistoryData] = useState([]);
   const [displayedData, setDisplayedData] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -20,7 +20,7 @@ export const History = () => {
   useEffect(() => {
     const fetchHistoryData = async () => {
       try {
-        const q = query(collection(db, 'sounds'), orderBy('date', 'desc'));
+        const q = query(collection(db, 'sounds'), where('deviceId', '==', deviceId),orderBy('date', 'desc'));
         const querySnapshot = await getDocs(q);
         const dayDataMap = new Map();
 
@@ -71,7 +71,7 @@ export const History = () => {
     };
 
     fetchHistoryData();
-  }, [loadCount]);
+  }, [loadCount, deviceId]);
 
   // Update the displayed data when filtered data or loadCount changes
   useEffect(() => {

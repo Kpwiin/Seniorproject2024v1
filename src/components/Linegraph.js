@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -11,7 +11,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import {collection, query, getDocs, orderBy } from 'firebase/firestore';
+import {collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import {db} from '../firebase'; 
 
@@ -27,14 +27,15 @@ ChartJS.register(
   Filler,
 );
 
-export const LineGraph = () => {
+export const LineGraph = ({ deviceId }) => {
   const [filteredData, setFilteredData] = useState({ labels: [], datasets: [] });
   const [timeRange, setTimeRange] = useState('last24hours'); // Default to "last24hours"
 
-  const fetchData = async (range) => {
+  const fetchData = useCallback(async (range) => {
     try {
       const now = new Date();
       let startDate;
+  
 
       // Set startDate based on selected range
       if (range === 'last24hours') {
@@ -57,6 +58,7 @@ export const LineGraph = () => {
       // Firestore query to fetch data sorted by date
       const q = query(
         collection(db, "sounds"),
+        where('deviceId', '==', deviceId),
         orderBy("date", "desc")
       );
 
@@ -68,6 +70,7 @@ export const LineGraph = () => {
       }
 
       querySnapshot.forEach((doc) => {
+        console.log(doc.data());
         const docData = doc.data();
       
         if (docData.date && docData.date._seconds !== undefined && docData.date._nanoseconds !== undefined) {
@@ -322,11 +325,11 @@ export const LineGraph = () => {
     } catch (error) {
       console.error("Error fetching data from Firestore: ", error);
     }
-  };
+  }, [deviceId]); 
 
   useEffect(() => {
-    fetchData(timeRange); // Fetch data whenever the time range changes
-  }, [timeRange]);
+    fetchData(timeRange);
+  }, [timeRange, fetchData]);
 
   const options = {
     responsive: true,
