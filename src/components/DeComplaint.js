@@ -4,9 +4,11 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { useNavigate } from 'react-router-dom'; 
 import {db} from '../firebase'; 
 import './Complaint.css';
+import { useParams } from 'react-router-dom';
 
 
-function Complaint() {
+
+function DeComplaint() {
   const [complaints, setComplaints] = useState([]);
   const [lastDoc, setLastDoc] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,6 +16,9 @@ function Complaint() {
   const [deletingId, setDeletingId] = useState(null);
   const complaintsPerPage = 3;
   const navigate = useNavigate(); 
+  const { deviceName } = useParams();
+  const decodedDeviceName = decodeURIComponent(deviceName);
+
 
   useEffect(() => {
     fetchComplaints();
@@ -28,19 +33,21 @@ function Complaint() {
         orderBy('timestamp', 'desc'),
         limit(complaintsPerPage)
       );
-
+  
       if (isNext && lastDoc) {
         q = query(q, startAfter(lastDoc));
       }
 
       const querySnapshot = await getDocs(q);
-      const complaintsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp.toDate(),
-        status: doc.data().status || false,
-      }));
-
+      const complaintsData = querySnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          timestamp: doc.data().timestamp.toDate(),
+          status: doc.data().status || false,
+        }))
+        .filter(complaint => complaint.location === decodedDeviceName);
+  
       setComplaints(isNext ? [...complaints, ...complaintsData] : complaintsData);
       setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
     } catch (error) {
@@ -50,6 +57,7 @@ function Complaint() {
       setLoading(false);
     }
   };
+  
 
   const deleteComplaint = async (id) => {
     setDeletingId(id);
@@ -87,7 +95,7 @@ function Complaint() {
   return (
     <div className="Complaint">
       <header className="Complaint-header">
-        <h1>Complaints</h1>
+        <h1>Complaints for {decodedDeviceName}</h1>
        
       </header>
 
@@ -152,4 +160,4 @@ function Complaint() {
   );
 }
 
-export default Complaint;
+export default DeComplaint;

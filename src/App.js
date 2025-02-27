@@ -14,7 +14,7 @@ import Register from './components/Register';
 import Userdevicelist from './components/Userdevicelist';
 import DeviceDetail from './components/DeviceDetail';
 import EditDevice from './components/EditDevice';
-
+import DeComplaint from './components/DeComplaint';
 // สร้าง Layout component สำหรับหน้าที่ต้องการ Navbar
 const Layout = ({ children }) => {
   return (
@@ -46,6 +46,7 @@ function App() {
           <Route path="/" element={<Layout><Userdevicelist /></Layout>} />
           <Route path="/device/:deviceId/:deviceName" element={<Layout><DeviceDetail /></Layout>} />
           <Route path="/device/:id/edit" element={<Layout><EditDevice /></Layout>} />
+          <Route path="/device-complaints/:deviceName" element={<Layout><DeComplaint /></Layout>} />
         </Routes>
       </div>
     </Router>

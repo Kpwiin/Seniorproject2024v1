@@ -20,7 +20,7 @@ function DeviceDetail() {
             <li><a href="#current">Current Sound Status</a></li>
             <li><a href="#graph">Historical Graph</a></li>
             <li><a href="#history">Sound History</a></li>
-            <li><Link to="/complaints">View Complaints</Link></li>
+            <li><Link to={`/device-complaints/${encodeURIComponent(decodedDeviceName)}`}>View Complaints</Link></li>
           </ul>
         </nav>
       </div>

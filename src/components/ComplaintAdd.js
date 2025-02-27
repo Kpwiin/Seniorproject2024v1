@@ -1,19 +1,46 @@
-import React, { useState} from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; 
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
-import {db} from '../firebase'; // Make sure to import your Firebase configuration
-import './ComplaintAdd.css'; // Import the CSS file
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'; 
+import { getAuth, onAuthStateChanged } from 'firebase/auth'; 
+import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import './ComplaintAdd.css';
 
 function ComplaintAdd() {
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState('');
   const [location, setLocation] = useState('');
+  const [locations, setLocations] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const navigate = useNavigate(); // Initialize the navigate hook
+  const navigate = useNavigate();
+  const auth = getAuth(); 
+  // Fetch user names from Firestore
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUsername(user.displayName); 
+      } else {
+        setUsername('');
+      }
+    });
+    return () => unsubscribe(); 
+  }, [auth]);
 
- 
+  // Fetch device names from Firestore
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const devicesSnapshot = await getDocs(collection(db, 'devices'));
+        const deviceNames = devicesSnapshot.docs.map(doc => doc.data().deviceName).filter(Boolean);
+        setLocations(deviceNames);
+      } catch (err) {
+        console.error('Error fetching locations:', err);
+      }
+    };
+    fetchLocations();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!username || !message || !location) {
@@ -22,14 +49,12 @@ function ComplaintAdd() {
     }
     setLoading(true);
     try {
-      // Add complaint to Firebase Firestore
       await addDoc(collection(db, 'complaints'), {
         username,
         message,
         location,
-        timestamp: serverTimestamp(), // Automatically sets the timestamp when the complaint is added
+        timestamp: serverTimestamp(),
       });
-      setUsername('');
       setMessage('');
       setLocation('');
       setError('');
@@ -42,11 +67,6 @@ function ComplaintAdd() {
     }
   };
 
-  // Navigate to the previous page
-  const handleBack = () => {
-    navigate(-1); // Go back to the previous page
-  };
-
   return (
     <div>
       <h1>Add Complaint</h1>
@@ -56,11 +76,10 @@ function ComplaintAdd() {
           <input 
             type="text" 
             value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
-            required 
+            disabled // Prevent manual input
           />
         </div>
-        
+
         <div>
           <label>Location</label>
           <select 
@@ -69,11 +88,12 @@ function ComplaintAdd() {
             required
           >
             <option value="">Select a location</option>
-            <option value="ICT Mahidol">ICT Mahidol</option>
-            <option value="7-11">7-11</option>
-            <option value="ATM">ATM</option>
+            {locations.map((loc, index) => (
+              <option key={index} value={loc}>{loc}</option>
+            ))}
           </select>
         </div>
+
         <div>
           <label>Message</label>
           <textarea 
@@ -82,14 +102,12 @@ function ComplaintAdd() {
             required 
           />
         </div>
+
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={loading}>
           {loading ? 'Submitting...' : 'Submit Complaint'}
         </button>
       </form>
-
-      {/* <button onClick={handleBack} className="back-button"> Back </button> */}
-
     </div>
   );
 }
