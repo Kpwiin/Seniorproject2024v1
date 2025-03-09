@@ -7,14 +7,13 @@ import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/ap
 
 const Container = styled.div`
   background-color: #121212;
-  min-height: 100vh;
-  padding: 2rem;
+  min-height: 1vh;
 `;
 
 const Title = styled.h1`
   color: #FFFFFF;
   text-align: center;
-  font-size: 2.5rem;
+  font-size: 2rem;
   margin-bottom: 3rem;
 `;
 

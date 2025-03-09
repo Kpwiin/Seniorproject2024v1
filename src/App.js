@@ -4,7 +4,6 @@ import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
 import DeviceManagement from './components/DeviceManagement';
 import DeviceSettings from './components/DeviceSettings';
-import AddDevice from './components/AddDevice';
 import Complaint from './components/Complaint';
 import ComplaintAdd from './components/ComplaintAdd';
 import ProfileSettings from './components/ProfileSettings';
@@ -15,7 +14,8 @@ import Userdevicelist from './components/Userdevicelist';
 import DeviceDetail from './components/DeviceDetail';
 import EditDevice from './components/EditDevice';
 import DeComplaint from './components/DeComplaint';
-// สร้าง Layout component สำหรับหน้าที่ต้องการ Navbar
+import VerifyDevice from './components/VerifyDevice';
+
 const Layout = ({ children }) => {
   return (
     <>
@@ -38,7 +38,6 @@ function App() {
           <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
           <Route path="/devices" element={<Layout><DeviceManagement /></Layout>} />
           <Route path="/device/:id/settings" element={<Layout><DeviceSettings /></Layout>} />
-          <Route path="/devices/add" element={<Layout><AddDevice /></Layout>} />
           <Route path="/complaints" element={<Layout><Complaint /></Layout>} />
           <Route path="/complaints/add" element={<Layout><ComplaintAdd /></Layout>} />
           <Route path="/settings" element={<Layout><ProfileSettings /></Layout>} />
@@ -47,6 +46,7 @@ function App() {
           <Route path="/device/:deviceId/:deviceName" element={<Layout><DeviceDetail /></Layout>} />
           <Route path="/device/:id/edit" element={<Layout><EditDevice /></Layout>} />
           <Route path="/device-complaints/:deviceName" element={<Layout><DeComplaint /></Layout>} />
+          <Route path="/devices/verify" element={<Layout><VerifyDevice /></Layout>} />
         </Routes>
       </div>
     </Router>
