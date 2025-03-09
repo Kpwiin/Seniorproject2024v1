@@ -75,5 +75,4 @@ const VerifyDevice = () => {
         </div>
     );
 };
-
 export default VerifyDevice;
