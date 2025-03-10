@@ -40,7 +40,7 @@ const Table = styled.table`
   color: white;
   table-layout: fixed;
   background: #1a1a1a;
-  cursor: pointer; // Makes the row clickable
+  cursor: pointer; 
 `;
 
 const Th = styled.th`
@@ -69,7 +69,7 @@ const TableRow = styled.tr`
 const StatusBadge = styled.span`
   display: flex;
   align-items: center;
-  justify-content: center; // เพิ่มเพื่อจัดให้อยู่กึ่งกลาง
+  justify-content: center; 
   gap: 8px;
   
   &::before {
@@ -79,7 +79,7 @@ const StatusBadge = styled.span`
     height: 8px;
     border-radius: 50%;
     background-color: ${props => props.active ? '#4CAF50' : '#f44336'};
-    margin-bottom: 1px; // ปรับให้จุดอยู่ในแนวเดียวกับตัวอักษร
+    margin-bottom: 1px; 
   }
   color: ${props => props.active ? '#4CAF50' : '#f44336'};
 `;
@@ -114,6 +114,7 @@ const NoDevicesMessage = styled.div`
 const ContentContainer = styled.div`
 
 `;
+
 const ModalOverlay = styled.div`
   position: fixed;
   top: 0;
@@ -130,26 +131,26 @@ const ModalOverlay = styled.div`
   color: white;
 `;
 
-// Modal Content Style
 const ModalContent = styled.div`
   background: #222; 
-  padding: 20px;
+  padding: 25px;
   max-width: 600px;
   width: 100%;
   max-height: 80vh; 
   overflow: hidden; 
   border-radius: 10px;
-  box-shadow: 0px 4px 10px rgba(255, 255, 255, 0.2); 
+  box-shadow: 0px 6px 15px rgba(255, 255, 255, 0.2); 
   color: white; 
+  text-align: center;
+  position: relative;
 `;
 
-// Scrollable Content Section inside Modal
 const ScrollableContent = styled.div`
-  max-height: 50vh; 
+  max-height: 40vh; 
   overflow-y: auto; 
-  margin-bottom: 0px; 
+  margin-top: 10px; 
+  margin-bottom: 5px; 
   padding-right: 10px;
-  scrollbar-width: thin; /* Firefox */
   scrollbar-color: #666 #222;
 
   &::-webkit-scrollbar {
@@ -164,26 +165,37 @@ const ScrollableContent = styled.div`
   }
 `;
 
-// Close Button Style
 const CloseButton = styled.button`
   background: none; 
   border: none;
-  padding: 10px 15px;
+  padding: 10px;
   color: #ff4d4d; 
-  font-size: 30px;
-  border-radius: 5px;
+  font-size: 28px;
   cursor: pointer;
-  margin-top: 15px;
+  position: absolute;
+  top: 5px;
+  right: 10px;
   transition: color 0.3s ease, transform 0.2s ease;
 
   &:hover {
     color: #cc0000; 
-    transform: scale(1.05);
+    transform: scale(1.1);
   }
 
   &:active {
     color: #990000; 
-    transform: scale(0.95);
+    transform: scale(0.9);
+  }
+`;
+
+const SoundIcon = styled.span`
+  font-size: 22px;
+  margin-left: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: scale(1.1);
   }
 `;
 
@@ -195,7 +207,6 @@ function DeviceManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [brokenDevices, setBrokenDevices] = useState([]);
-
   
   useEffect(() => {
     fetchDevices();
@@ -223,14 +234,12 @@ function DeviceManagement() {
       if (device) {
         const fetchSoundLevels = async (deviceId) => {
           try {
-            // Query Firestore collection where deviceId matches the specified deviceId
             const q = query(collection(db, 'sounds'), where('deviceId', '==', String(deviceId)));
             const querySnapshot = await getDocs(q);
     
             const levels = querySnapshot.docs.map(doc => {
               const data = doc.data();
               
-              // Log the entire fetched document to inspect all fields
               console.log('Fetched document data:', JSON.stringify(data, null, 2));
     
               const date = data.date;
@@ -238,9 +247,8 @@ function DeviceManagement() {
     
               if (date) {
                 if (date._seconds !== undefined && date._nanoseconds !== undefined) {
-                  // Convert _seconds and _nanoseconds to a JavaScript Date object
                   const timestamp = new Date((date._seconds * 1000) + (date._nanoseconds / 1000000));
-                  formattedDate = timestamp.toLocaleString(); // Convert to readable format
+                  formattedDate = timestamp.toLocaleString(); 
                 } else {
                   console.log('Unexpected date format:', date);
                 }
@@ -250,72 +258,77 @@ function DeviceManagement() {
     
               return {
                 id: doc.id,
-                ...data, // Include all other fields from the document
-                date: formattedDate // Add formatted date to the returned data
+                ...data, 
+                date: formattedDate 
               };
             });
     
-            // Log the processed sound levels for debugging
             console.log('Fetched sound levels:', levels);
-            setSoundLevels(levels); // Update state with fetched data
+            setSoundLevels(levels); 
           } catch (error) {
-            console.error('Error fetching sound levels:', error); // Error handling
+            console.error('Error fetching sound levels:', error); 
           }
         };
     
-        // Explicitly pass the deviceId to the fetch function
         fetchSoundLevels(device.deviceId);
       }
-    }, [device]); // Dependency array ensures the effect runs when `device` changes
+    }, [device]); 
     
     
     if (!device) return null;
     return (
       <ModalOverlay onClick={onClose}>
-      <ModalContent onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
-      <CloseButton 
-        onClick={onClose} 
-        style={{ 
-         position: 'absolute', 
-         top: '-10px', 
-         right: '6px', 
-         zIndex: 10 
-        }}
-      >
-       ×
-</CloseButton>
+      <ModalContent onClick={(e) => e.stopPropagation()}>
+        <CloseButton onClick={onClose}>×</CloseButton>
         <h2>Device Info</h2>
         <p><strong>Name:</strong> {device.deviceName}</p>
         <p><strong>ID:</strong> {device.deviceId}</p>
         <p><strong>Location:</strong> {device.location}</p>
         <p><strong>Status:</strong> {device.status}</p>
-        <div style={{ marginBottom: '15px' }}></div> 
-        <h3>Sound Levels</h3>
+        <div style={{ marginBottom: "20px" }}></div> 
+        <h2>Sound Levels</h2>
         {soundLevels.length === 0 ? (
           <p>No sound data available</p>
         ) : (
           <ScrollableContent>
-            <ul>
+            <ul style={{ padding: 0, listStyle: "none" }}>
               {soundLevels.map((sound, index) => (
                 <li 
-                key={index}
-                style={{
-                  color: sound.level < 70 ? "green" : sound.level <= 85 ? "yellow" : "red",
-                }}
-              >
-                {sound.date} - {sound.level} dB - {sound.result}
-              </li>
+                  key={index}
+                  style={{
+                    color: sound.level < 70 ? "green" : sound.level <= 85 ? "yellow" : "red",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "5px",
+                    padding: "2px 0",
+                    fontSize: "16px",
+                  }}
+                >
+                  {sound.date} - {sound.level} dB - {sound.result}
+                  <SoundIcon 
+                    onClick={() => {
+                      if (sound.sample) {
+                        new Audio(sound.sample).play();
+                      } else {
+                        alert("No Audio Available");
+                      }
+                    }}
+                  >
+                    🔊
+                  </SoundIcon>
+                </li>
               ))}
             </ul>
           </ScrollableContent>
         )}
- <div style={{
+        <div style={{
   display: 'flex',
   justifyContent: 'center',
   gap: '10px',
-  marginTop: '12px',
+  marginTop: '20px',
 }}>
-  {brokenDevices.includes(device.deviceId) ? (
+  {device.broken ? (
     <button 
       onClick={() => handleMarkAsWorking(device.deviceId)}
       style={{
@@ -326,6 +339,8 @@ function DeviceManagement() {
         borderRadius: '5px',
         cursor: 'pointer',
       }}
+      onMouseEnter={(e) => e.target.style.backgroundColor = '#4CAF50'} 
+      onMouseLeave={(e) => e.target.style.backgroundColor = 'green'} 
     >
       Mark as Working
     </button>
@@ -340,13 +355,15 @@ function DeviceManagement() {
         borderRadius: '5px',
         cursor: 'pointer',
       }}
+      onMouseEnter={(e) => e.target.style.backgroundColor = '#FF6347'} 
+      onMouseLeave={(e) => e.target.style.backgroundColor = 'red'} 
     >
       Mark as Not Working
     </button>
   )}
 </div>
       </ModalContent>
-    </ModalOverlay>    
+    </ModalOverlay> 
     );
   };
 
@@ -370,55 +387,52 @@ function DeviceManagement() {
     setSelectedDevice(null);
   };
 
-const handleDeviceIssue = async (deviceId) => {
-  console.log('Handling device issue for deviceId:', deviceId); // Debugging log
-  const confirmChange = window.confirm('Are you sure you want to mark this device as not working?');
-  if (confirmChange) {
-    // Query Firestore to find the document with the matching deviceId field
-    const q = query(collection(db, 'devices'), where('deviceId', '==', deviceId));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      // If we find a matching document, get the first result
-      const deviceDoc = querySnapshot.docs[0];
-      const deviceRef = deviceDoc.ref;
-
-      // Update Firestore to mark as broken
-      await updateDoc(deviceRef, { broken: true });
-
-      // Update local state to reflect the broken device
-      setBrokenDevices([...brokenDevices, deviceId]);
-      alert(`Device ${deviceId} is marked as not working!`);
-    } else {
-      alert(`Device with deviceId ${deviceId} not found!`);
+  const handleDeviceIssue = async (deviceId) => {
+    console.log('Handling device issue for deviceId:', deviceId);
+    const confirmChange = window.confirm('Are you sure you want to mark this device as not working?');
+    if (confirmChange) {
+      const q = query(collection(db, 'devices'), where('deviceId', '==', deviceId));
+      const querySnapshot = await getDocs(q);
+  
+      if (!querySnapshot.empty) {
+        const deviceDoc = querySnapshot.docs[0];
+        const deviceRef = deviceDoc.ref;
+  
+        await updateDoc(deviceRef, { broken: true });
+  
+        setBrokenDevices([...brokenDevices, deviceId]);
+        alert(`Device ${deviceId} is marked as not working!`);
+        
+        window.location.reload();
+      } else {
+        alert(`Device with deviceId ${deviceId} not found!`);
+      }
     }
-  }
-};
-
-const handleMarkAsWorking = async (deviceId) => {
-  console.log('Handling device issue for deviceId:', deviceId); // Debugging log
-  const confirmChange = window.confirm('Are you sure you want to mark this device as working?');
-  if (confirmChange) {
-    // Query Firestore to find the document with the matching deviceId field
-    const q = query(collection(db, 'devices'), where('deviceId', '==', deviceId));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      // If we find a matching document, get the first result
-      const deviceDoc = querySnapshot.docs[0];
-      const deviceRef = deviceDoc.ref;
-
-      // Update Firestore to mark as working
-      await updateDoc(deviceRef, { broken: false });
-
-      // Update local state to reflect the device is working again
-      setBrokenDevices(brokenDevices.filter(id => id !== deviceId));
-      alert(`Device ${deviceId} is marked as working!`);
-    } else {
-      alert(`Device with deviceId ${deviceId} not found!`);
+  };
+  
+  const handleMarkAsWorking = async (deviceId) => {
+    console.log('Handling device issue for deviceId:', deviceId);
+    const confirmChange = window.confirm('Are you sure you want to mark this device as working?');
+    if (confirmChange) {
+      const q = query(collection(db, 'devices'), where('deviceId', '==', deviceId));
+      const querySnapshot = await getDocs(q);
+  
+      if (!querySnapshot.empty) {
+        const deviceDoc = querySnapshot.docs[0];
+        const deviceRef = deviceDoc.ref;
+  
+        await updateDoc(deviceRef, { broken: false });
+  
+        setBrokenDevices(brokenDevices.filter(id => id !== deviceId));
+        alert(`Device ${deviceId} is marked as working!`);
+        
+        window.location.reload();
+      } else {
+        alert(`Device with deviceId ${deviceId} not found!`);
+      }
     }
-  }
-};
+  };
+  
 
   
 
@@ -459,12 +473,12 @@ const handleMarkAsWorking = async (deviceId) => {
                 {devices.map((device) => (
                   <TableRow key={device.id} onClick={() => handleRowClick(device)}>
                     <Td 
-                        style={{ 
-                          textAlign: 'center', 
-                        color: brokenDevices.includes(device.deviceId) ? 'red' : 'white' 
-                        }}
-                        >
-                        {device.deviceName}
+                    style={{ 
+                    textAlign: 'center', 
+                    color: device.broken ? 'red' : 'white' 
+                    }}
+                    >
+                    {device.deviceName}  
                     </Td>
                     <Td style={{ textAlign: 'center' }}>{device.deviceId}</Td>
                     <Td>{device.location}</Td>
