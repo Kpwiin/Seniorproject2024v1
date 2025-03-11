@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore'; 
 import { getAuth, onAuthStateChanged } from 'firebase/auth'; 
-import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import './ComplaintAdd.css';
+import { useNavigate } from 'react-router-dom';
 
 function ComplaintAdd() {
   const [username, setUsername] = useState('');
@@ -12,10 +12,9 @@ function ComplaintAdd() {
   const [locations, setLocations] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const navigate = useNavigate();
   const auth = getAuth(); 
-  // Fetch user names from Firestore
+  const navigate = useNavigate();
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -43,22 +42,35 @@ function ComplaintAdd() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!username || !message || !location) {
       setError('All fields are required.');
       return;
     }
+  
+    // Confirmation dialog before submitting
+    const confirmed = window.confirm('Are you sure you want to submit this complaint?');
+    if (!confirmed) return;  // Exit if the user cancels the submission
+    
     setLoading(true);
     try {
+      // Add the complaint to Firestore
       await addDoc(collection(db, 'complaints'), {
         username,
         message,
         location,
         timestamp: serverTimestamp(),
       });
+      
+      // Clear form fields
       setMessage('');
       setLocation('');
       setError('');
+      
       alert('Complaint added successfully!');
+      
+      // Redirect back to the complaints page
+      navigate('/complaints');
     } catch (err) {
       console.error('Error adding complaint:', err);
       setError('There was an error adding your complaint. Please try again.');
@@ -66,6 +78,7 @@ function ComplaintAdd() {
       setLoading(false);
     }
   };
+  
 
   return (
     <div>

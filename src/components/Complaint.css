@@ -4,36 +4,12 @@
     color: white;
     min-height: 100vh;
   }
-  
-  .App-header {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    background-color: #1E2043;
+
+  .Complaint-header h1{
+    color:#ffffff;
+    margin-top: 15vh;
   }
-  
-  .App-header h1 {
-    margin: 0;
-    color:#3833ce;
-  }
-  
-  .App-header nav ul {
-    display: flex;
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-  }
-  
-  .App-header nav li {
-    margin: 0 20px;
-    margin-top: 9px;
-  }
-  
-  .App-main h2 {
-    color:#3833ce;
-    margin-top: 25px;
-  }
-  
+
   .complaint-list {
     display: flex;
     flex-direction: column; 
@@ -65,11 +41,11 @@
     height: 100px;
     max-height: 100px;
     padding: 10px;
-    word-wrap: break-word; /* Long words wrap to the next line */
+    word-wrap: break-word; 
     overflow: auto; 
-    text-overflow: ellipsis; /* Add ... */
-    white-space: normal; /* Allow normal text wrapping */
-    box-sizing: border-box; /* Padding in the element height */
+    text-overflow: ellipsis;
+    white-space: normal; 
+    box-sizing: border-box; 
   }
   
   .location {
@@ -127,25 +103,35 @@
   
   
   .add-complaint-button {
-    margin-top: 5px;
     margin-bottom: 20px;
-    padding: 15px 30px;
-    border: none;
-    background-color:#3833ce;
+    padding: 10px 15px;
     color: white;
+    font-size: 16px;
+    font-weight: bold;
     cursor: pointer;
-    border-radius: 10px;
+    border: none;
+    background-color:#ffffff;
+    color: rgb(0, 0, 0);
+    border-radius: 8px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
+  .add-complaint-button::before {
+    content: "+"; 
+    font-size: 18px;
+}
   
   .more-button {
     margin-top: 20px;
     margin-bottom: 30px;
-    padding: 15px 30px;
+    padding: 10px 15px;
     border: none;
-    background-color:#3833ce;
-    color: white;
+    background-color:#ffffff;
+    color: rgb(0, 0, 0);
     cursor: pointer;
-    border-radius: 10px;
+    border-radius: 7px;
+    font-weight: bold;
   }
   
   body, html {
@@ -162,4 +148,49 @@
   
   .unverified {
     color:#F44336;
+  }
+
+  .comments-section {
+    margin-top: 20px;
+    padding: 10px;
+    border-top: 1px solid #ddd;
+  }
+  
+  .comments-list {
+    margin-bottom: 20px;
+  }
+  
+  .comment-item {
+    margin-bottom: 10px;
+    padding: 5px;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+  }
+  
+  .new-comment-textarea {
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    margin-bottom: 10px;
+  }
+  
+  .add-comment-button {
+    padding: 10px 15px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  .add-comment-button:hover {
+    background-color: #0056b3;
+  }
+
+  .load-more-comments {
+    padding: 2px 3px;
+    color: rgb(0, 0, 0);
+    cursor: pointer;
+    margin-bottom: 1vh;
   }
