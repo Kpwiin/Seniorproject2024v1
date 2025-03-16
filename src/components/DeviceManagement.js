@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo} from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, getDocs, query, where, updateDoc} from 'firebase/firestore';
+import { collection, getDocs, query, where, updateDoc, doc} from 'firebase/firestore';
 import { FiSettings } from 'react-icons/fi';
 import AddDevice from './AddDevice';
 
@@ -14,6 +14,7 @@ const Container = styled.div`
 const Title = styled.h1`
   color: white;
   margin-bottom: 20px;
+  margin-top: 100px;
 `;
 
 const TabContainer = styled.div`
@@ -143,13 +144,14 @@ const ModalContent = styled.div`
   color: white; 
   text-align: center;
   position: relative;
+  
 `;
 
 const ScrollableContent = styled.div`
-  max-height: 40vh; 
-  overflow-y: auto; 
-  margin-top: 10px; 
-  margin-bottom: 5px; 
+  max-height: 40vh;
+  overflow-y: auto;
+  margin-top: 10px;
+  margin-bottom: 5px;
   padding-right: 10px;
   scrollbar-color: #666 #222;
 
@@ -163,7 +165,15 @@ const ScrollableContent = styled.div`
   &::-webkit-scrollbar-track {
     background: #222;
   }
+
+  display: flex;  
+  flex-direction: column;  
+  justify-content: center;  
+  align-items: center;  
+  text-align: center;  
+  width: 100%;
 `;
+
 
 const CloseButton = styled.button`
   background: none; 
@@ -206,8 +216,12 @@ function DeviceManagement() {
   const [activeTab, setActiveTab] = useState('Devices list');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [brokenDevices, setBrokenDevices] = useState([]);
-  
+  const [editingIndex, setEditingIndex] = useState(null);
+const [editedData, setEditedData] = useState({});
+const [saving, setSaving] = useState(false);
+const [soundLevels, setSoundLevels] = useState([]);
+
+
   useEffect(() => {
     fetchDevices();
   }, []);
@@ -227,145 +241,178 @@ function DeviceManagement() {
     }
   };
   
-  const DeviceInfoModal = ({ device, onClose }) => {
+  const DeviceInfoModal = React.memo(({ device, onClose }) => {
     const [soundLevels, setSoundLevels] = useState([]);
-    
+    const [isFetching, setIsFetching] = useState(false);
+  
     useEffect(() => {
-      if (device) {
+      if (device && soundLevels.length === 0) {
         const fetchSoundLevels = async (deviceId) => {
+          setIsFetching(true);
           try {
             const q = query(collection(db, 'sounds'), where('deviceId', '==', String(deviceId)));
             const querySnapshot = await getDocs(q);
-    
+  
             const levels = querySnapshot.docs.map(doc => {
               const data = doc.data();
-              
-              console.log('Fetched document data:', JSON.stringify(data, null, 2));
-    
               const date = data.date;
               let formattedDate = 'Invalid timestamp or missing date field';
-    
+              
               if (date) {
                 if (date._seconds !== undefined && date._nanoseconds !== undefined) {
                   const timestamp = new Date((date._seconds * 1000) + (date._nanoseconds / 1000000));
-                  formattedDate = timestamp.toLocaleString(); 
-                } else {
-                  console.log('Unexpected date format:', date);
+                  formattedDate = timestamp.toLocaleString();
                 }
-              } else {
-                console.log('Date field is missing');
               }
-    
+  
               return {
                 id: doc.id,
-                ...data, 
-                date: formattedDate 
+                ...data,
+                date: formattedDate
               };
             });
-    
-            console.log('Fetched sound levels:', levels);
-            setSoundLevels(levels); 
+            setSoundLevels(levels);
           } catch (error) {
-            console.error('Error fetching sound levels:', error); 
+            console.error('Error fetching sound levels:', error);
+          } finally {
+            setIsFetching(false);
           }
         };
-    
+  
         fetchSoundLevels(device.deviceId);
       }
-    }, [device]); 
-    
-    
+    }, [device, soundLevels]);
+  
+    // Memoize the sound levels processing
+    const soundLevelsMemoized = useMemo(() => {
+      return soundLevels.map((sound) => ({
+        ...sound,
+        color: sound.level < 70 ? "green" : sound.level <= 85 ? "yellow" : "red",
+        formattedDate: new Date(sound.date).toLocaleString(),
+      }));
+    }, [soundLevels]); // Only recompute when `soundLevels` change
+  
     if (!device) return null;
+  
     return (
       <ModalOverlay onClick={onClose}>
-      <ModalContent onClick={(e) => e.stopPropagation()}>
-        <CloseButton onClick={onClose}>×</CloseButton>
-        <h2>Device Info</h2>
-        <p><strong>Name:</strong> {device.deviceName}</p>
-        <p><strong>ID:</strong> {device.deviceId}</p>
-        <p><strong>Location:</strong> {device.location}</p>
-        <p><strong>Status:</strong> {device.status}</p>
-        <div style={{ marginBottom: "20px" }}></div> 
-        <h2>Sound Levels</h2>
-        {soundLevels.length === 0 ? (
-          <p>No sound data available</p>
-        ) : (
-          <ScrollableContent>
-            <ul style={{ padding: 0, listStyle: "none" }}>
-              {soundLevels.map((sound, index) => (
-                <li 
-                  key={index}
-                  style={{
-                    color: sound.level < 70 ? "green" : sound.level <= 85 ? "yellow" : "red",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "5px",
-                    padding: "2px 0",
-                    fontSize: "16px",
-                  }}
-                >
-                  {sound.date} - {sound.level} dB - {sound.result}
-                  <SoundIcon 
-                    onClick={() => {
-                      if (sound.sample) {
-                        new Audio(sound.sample).play();
-                      } else {
-                        alert("No Audio Available");
-                      }
-                    }}
-                  >
-                    🔊
-                  </SoundIcon>
-                </li>
-              ))}
-            </ul>
-          </ScrollableContent>
-        )}
-        <div style={{
-  display: 'flex',
-  justifyContent: 'center',
-  gap: '10px',
-  marginTop: '20px',
-}}>
-  {device.broken ? (
-    <button 
-      onClick={() => handleMarkAsWorking(device.deviceId)}
-      style={{
-        padding: '10px',
-        backgroundColor: 'green',
-        color: 'white',
-        border: 'none',
-        borderRadius: '5px',
-        cursor: 'pointer',
-      }}
-      onMouseEnter={(e) => e.target.style.backgroundColor = '#4CAF50'} 
-      onMouseLeave={(e) => e.target.style.backgroundColor = 'green'} 
-    >
-      Mark as Working
-    </button>
-  ) : (
-    <button 
-      onClick={() => handleDeviceIssue(device.deviceId)}
-      style={{
-        padding: '10px',
-        backgroundColor: 'red',
-        color: 'white',
-        border: 'none',
-        borderRadius: '5px',
-        cursor: 'pointer',
-      }}
-      onMouseEnter={(e) => e.target.style.backgroundColor = '#FF6347'} 
-      onMouseLeave={(e) => e.target.style.backgroundColor = 'red'} 
-    >
-      Mark as Not Working
-    </button>
-  )}
-</div>
-      </ModalContent>
-    </ModalOverlay> 
+  <ModalContent onClick={(e) => e.stopPropagation()}>
+    <CloseButton onClick={onClose}>×</CloseButton>
+    <h2>Device Info</h2>
+    <p><strong>Name:</strong> {device.deviceName}</p>
+    <p><strong>ID:</strong> {device.deviceId}</p>
+    <p><strong>Location:</strong> {device.location}</p>
+    <p><strong>Status:</strong> {device.status}</p>
+    <div style={{ marginBottom: "20px" }}></div>
+
+    <h2>Sound Levels</h2>
+    {isFetching ? (
+      <p>Loading sound levels...</p>
+    ) : soundLevelsMemoized.length === 0 ? (
+      <p>No sound data available</p>
+    ) : (
+      <ScrollableContent>
+        <ul style={{ padding: 0, listStyle: "none" }}>
+          {soundLevelsMemoized.map((sound, index) => (
+            <li 
+              key={index}
+              style={{
+                color: sound.color,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",  
+                gap: "10px",  
+                padding: "2px",
+                fontSize: "16px",
+                width: "100%", 
+                textAlign: "center", 
+              }}
+            >
+              {sound.level > 85 ? (
+                <>
+                  {/* Show dropdown when editing */}
+                  {editingIndex === index ? (
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      {/* Display Date and dB */}
+                      <span>{sound.formattedDate} - {sound.level} dB - </span>
+
+                      {/* Dropdown for classification result */}
+                      <select
+                        value={editedData.result || sound.result} // Use editedData if available, else the original result
+                        onChange={(e) => handleChange(e, "result")}
+                        style={{ width: "120px", padding: "5px" }}
+                      >
+                        <option value="Engine">Engine</option>
+                        <option value="Airplane">Airplane</option>
+                        <option value="Car">Car</option>
+                        <option value="Train">Train</option>
+                        <option value="Car Horn">Car Horn</option>
+                        <option value="Chainsaw">Chainsaw</option>
+                        <option value="Drilling">Drilling</option>
+                        <option value="Handsaw">Handsaw</option>
+                        <option value="Jackhammer">Jackhammer</option>
+                        <option value="Street Music">Street Music</option>
+                        <option value="Other Sounds">Other Sounds</option>
+                      </select>
+
+                      {/* Save button */}
+                      <button 
+                        onClick={() => handleSave(sound.id)} 
+                        disabled={saving}
+                        style={{
+                          backgroundColor: "#28a745", 
+                          color: "white",
+                          padding: "6px 10px", 
+                          border: "none",
+                          borderRadius: "5px", 
+                          cursor: "pointer",
+                          fontSize: "14px",
+                          transition: "0.3s ease-in-out", 
+                        }}
+                      >
+                        {saving ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Display Date and dB with clickable classification */}
+                      <span>{sound.formattedDate} - {sound.level} dB - </span>
+                      <span 
+                        onClick={() => handleEditClick(index, sound)} 
+                        style={{ cursor: "pointer", textDecoration: "underline" }}
+                      >
+                        {sound.result}
+                      </span>
+                      <SoundIcon 
+                        onClick={() => {
+                          if (sound.sample) {
+                            new Audio(sound.sample).play();
+                          } else {
+                            alert("No Audio Available");
+                          }
+                        }}
+                      >
+                        🔊
+                      </SoundIcon>
+                    </>
+                  )}
+                </>
+              ) : (
+                <span>
+                  {sound.formattedDate} - {sound.level} dB
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </ScrollableContent>
+    )}
+  </ModalContent>
+</ModalOverlay>
+
+    
     );
-  };
+  });
 
   const handleSettingsClick = (e, deviceId) => {
     e.stopPropagation(); 
@@ -385,56 +432,45 @@ function DeviceManagement() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedDevice(null);
+    setEditingIndex(null);  
   };
-
-  const handleDeviceIssue = async (deviceId) => {
-    console.log('Handling device issue for deviceId:', deviceId);
-    const confirmChange = window.confirm('Are you sure you want to mark this device as not working?');
-    if (confirmChange) {
-      const q = query(collection(db, 'devices'), where('deviceId', '==', deviceId));
-      const querySnapshot = await getDocs(q);
   
-      if (!querySnapshot.empty) {
-        const deviceDoc = querySnapshot.docs[0];
-        const deviceRef = deviceDoc.ref;
+  const handleEditClick = (index, sound) => {
+    setEditingIndex(index);
+    setEditedData({ ...sound });
+    
+  };
   
-        await updateDoc(deviceRef, { broken: true });
+  const handleChange = (e, field) => {
+    setEditedData({ ...editedData, [field]: e.target.value });
+  };
   
-        setBrokenDevices([...brokenDevices, deviceId]);
-        alert(`Device ${deviceId} is marked as not working!`);
-        
-        window.location.reload();
-      } else {
-        alert(`Device with deviceId ${deviceId} not found!`);
-      }
+  const handleSave = async (soundId) => {
+    if (!editedData.level || !editedData.result) {
+      alert("Please enter both sound level and result.");
+      return;
+    }
+  
+    setSaving(true);
+    try {
+      const soundRef = doc(db, "sounds", soundId);
+      await updateDoc(soundRef, {
+        level: Number(editedData.level),
+        result: editedData.result,
+      });
+  
+      setSoundLevels((prev) =>
+        prev.map((s) => (s.id === soundId ? { ...s, ...editedData } : s))
+      );
+      setEditingIndex(null);
+      alert("Sound data updated successfully!");
+    } catch (error) {
+      console.error("Error updating sound data:", error);
+      alert("Failed to update sound data.");
+    } finally {
+      setSaving(false);
     }
   };
-  
-  const handleMarkAsWorking = async (deviceId) => {
-    console.log('Handling device issue for deviceId:', deviceId);
-    const confirmChange = window.confirm('Are you sure you want to mark this device as working?');
-    if (confirmChange) {
-      const q = query(collection(db, 'devices'), where('deviceId', '==', deviceId));
-      const querySnapshot = await getDocs(q);
-  
-      if (!querySnapshot.empty) {
-        const deviceDoc = querySnapshot.docs[0];
-        const deviceRef = deviceDoc.ref;
-  
-        await updateDoc(deviceRef, { broken: false });
-  
-        setBrokenDevices(brokenDevices.filter(id => id !== deviceId));
-        alert(`Device ${deviceId} is marked as working!`);
-        
-        window.location.reload();
-      } else {
-        alert(`Device with deviceId ${deviceId} not found!`);
-      }
-    }
-  };
-  
-
-  
 
   if (loading) {
     return <LoadingContainer>Loading...</LoadingContainer>;
@@ -475,7 +511,6 @@ function DeviceManagement() {
                     <Td 
                     style={{ 
                     textAlign: 'center', 
-                    color: device.broken ? 'red' : 'white' 
                     }}
                     >
                     {device.deviceName}  
