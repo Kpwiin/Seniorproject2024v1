@@ -5,11 +5,11 @@ import { db } from '../firebase';
 import { collection, getDocs, query, where, updateDoc, doc} from 'firebase/firestore';
 import { FiSettings } from 'react-icons/fi';
 import AddDevice from './AddDevice';
-import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
 
 const Container = styled.div`
   padding: 20px;
   width: 100%;
+  
 `;
 
 const Title = styled.h1`
@@ -36,13 +36,21 @@ const Tab = styled.span`
     color: #1a75ff;
   }
 `;
+
+const TableContainer = styled.div`
+  height: calc(100vh - 100px);
+  overflow-y: auto; 
+  position: relative;
+  
+`;
+
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   color: white;
   table-layout: fixed;
   background: #1a1a1a;
-  cursor: pointer; 
+  cursor: pointer;
 `;
 
 const Th = styled.th`
@@ -51,6 +59,10 @@ const Th = styled.th`
   border-bottom: 1px solid #333;
   color: #999;
   font-weight: normal;
+  position: sticky;
+  top: 0;
+  background: #222;
+  z-index: 1;
 `;
 
 const Td = styled.td`
@@ -171,8 +183,8 @@ const FilterContainer = styled.div`
 `;
 
 const FilterSelect = styled.select`
-  margin-top: 15px;
-  padding: 8px 8px;
+  margin-top: 10px;
+  padding: 6px 8px;
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 5px;
@@ -189,36 +201,12 @@ const FilterSelect = styled.select`
   }
 `;
 
-const SortButton = styled.button`
-  background-color: #333333;
-  border: 1px solid #ccc;
-  color: #fff;
-  font-size: 14px; 
-  padding: 4px 2px; 
-  margin-top: 15px;
-  cursor: pointer;
+const SearchInput = styled.input`
+   padding: 6px 8px;
+  margin-top: 10px;
+  width: 200px;
   border-radius: 5px;
-  transition: all 0.3s ease-in-out;
-  display: flex;
-  align-items: center;
-  justify-content: center; 
-  min-width: 120px; 
-  
-  &:hover,
-  &:focus {
-    border-color: #1a75ff;
-    outline: none;
-  }
-
-  span {
-    margin-right: 2px;
-    margin-left: 6px;
-  }
-
-  svg {
-    font-size: 20px;
-    color: #fff;
-  }
+  border: 1px solid #ccc;
 `;
 
 function DeviceManagement() {
@@ -278,6 +266,35 @@ function DeviceManagement() {
       fetchSoundLevels(device.deviceId); 
     }
   };
+  
+  const [dateSortOrder, setDateSortOrder] = useState("newest"); 
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+const handleDateSort = () => {
+  setDateSortOrder(prev => (prev === "newest" ? "oldest" : "newest"));
+};
+
+const filteredDevices = devices
+  .filter(device =>
+    statusFilter === "all" || device.status.toLowerCase() === statusFilter
+  )
+  .filter(device =>
+    device.deviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    device.deviceId.toLowerCase().includes(searchQuery.toLowerCase()) 
+  )
+  .sort((a, b) => {
+    if (statusFilter !== "all") {
+      const statusComparison = a.status.localeCompare(b.status);
+      if (statusComparison !== 0) return statusComparison;
+    }
+
+    const dateSort = dateSortOrder === "newest"
+      ? new Date(b.createdAt.toDate()) - new Date(a.createdAt.toDate())
+      : new Date(a.createdAt.toDate()) - new Date(b.createdAt.toDate());
+
+    return dateSort;
+  });
 
   const fetchSoundLevels = async (deviceId) => {
     setIsFetching(true);
@@ -307,11 +324,11 @@ function DeviceManagement() {
     setEditedData({ ...editedData, [field]: e.target.value });
   };
 
-  const [sortByLevelOrder, setSortByLevelOrder] = useState("asc"); 
-  const toggleSortByLevelOrder = () => {
-    setSortByLevelOrder((prevOrder) => (prevOrder === "asc" ? "desc" : "asc"));
+  const [sortByDateOrder, setSortByDateOrder] = useState("newest"); 
+
+  const handleSortChange = (event) => {
+    setSortByDateOrder(event.target.value);
   };
-  
 
 
   const [timeFilter, setTimeFilter] = useState("1 hour");
@@ -320,7 +337,6 @@ function DeviceManagement() {
     const now = new Date();
     let timeRange = 0;
   
-    // Set time range based on the time filter
     switch (timeFilter) {
       case "1 hour":
         timeRange = 1;
@@ -347,32 +363,21 @@ function DeviceManagement() {
         timeRange = 1;
     }
   
-    // Filter sound levels by time and danger filter
     const filteredLevels = soundLevelsMemoized.filter((sound) => {
       const soundDate = new Date(sound.date);
       const diffHours = (now - soundDate) / (1000 * 60 * 60);
-  
-      // Apply time filter
       const matchesTimeFilter = diffHours <= timeRange;
-  
-      // Apply danger filter
       const matchesDangerFilter = dangerFilter === "all" || sound.level > 85;
-  
       return matchesTimeFilter && matchesDangerFilter;
     });
   
-    // Sort by level (ascending or descending based on the order)
     return filteredLevels.sort((a, b) => {
-      if (sortByLevelOrder === "asc") {
-        return a.level - b.level;
-      } else {
-        return b.level - a.level;
-      }
+      return sortByDateOrder === "newest"
+        ? new Date(b.date) - new Date(a.date)
+        : new Date(a.date) - new Date(b.date);
     });
+  }, [soundLevelsMemoized, timeFilter, dangerFilter, sortByDateOrder]); 
   
-  }, [soundLevelsMemoized, timeFilter, dangerFilter, sortByLevelOrder]);  // Include `sortByLevelOrder` in dependencies
-  
-
   const handleSave = async (soundId) => {
     if (!editedData.level || !editedData.result) {
       alert("Please enter both sound level and result.");
@@ -407,6 +412,7 @@ function DeviceManagement() {
   return (
     <Container>
       <Title>Manage Devices</Title>
+      
       <TabContainer>
         <Tab active={activeTab === 'Devices list'} onClick={() => handleTabChange('Devices list')}>
           Devices list
@@ -417,10 +423,29 @@ function DeviceManagement() {
       </TabContainer>
 
       <ContentContainer>
+      <FiltersWrapper>
+      <SearchInput 
+        type="text" 
+        placeholder="🔍   Device Name / Device ID" 
+        value={searchQuery} 
+        onChange={(e) => setSearchQuery(e.target.value)} 
+      />
+      <FilterSelect value={dateSortOrder} onChange={handleDateSort}>
+        <option value="newest">Most Recent</option>
+        <option value="oldest">Least Recent</option>
+      </FilterSelect>
+      
+      <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <option value="all">All Status</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </FilterSelect>
+    </FiltersWrapper>
         {activeTab === 'Devices list' && (
           devices.length === 0 ? (
             <NoDevicesMessage>No devices found</NoDevicesMessage>
           ) : (
+            <TableContainer>
             <Table>
               <thead>
                 <tr>
@@ -433,7 +458,7 @@ function DeviceManagement() {
                 </tr>
               </thead>
               <tbody>
-                {devices.map((device) => (
+              {filteredDevices.map((device) => (
                   <React.Fragment key={device.id}>
                     <TableRow onClick={() => handleRowClick(device)}>
                       <Td style={{ textAlign: 'center' }}>{device.deviceName}</Td>
@@ -489,14 +514,10 @@ function DeviceManagement() {
                           </div>
                           <div>
                             <FilterContainer>
-                            <SortButton onClick={toggleSortByLevelOrder}>
-                              <span>Sort by Level</span>
-                              {sortByLevelOrder === "asc" ? (
-                                <ArrowUpward />
-                              ) : (
-                                <ArrowDownward />
-                              )}
-                            </SortButton>
+                            <FilterSelect value={sortByDateOrder} onChange={handleSortChange}>
+                              <option value="newest">Most Recent</option>
+                              <option value="oldest">Least Recent</option>
+                              </FilterSelect>
                             </FilterContainer>
                           </div>
                           </FiltersWrapper>
@@ -581,6 +602,7 @@ function DeviceManagement() {
                 ))}
               </tbody>
             </Table>
+            </TableContainer>
           )
         )}
         {activeTab === 'Add device' && <AddDevice />}
