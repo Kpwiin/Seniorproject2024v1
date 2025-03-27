@@ -245,8 +245,12 @@ function Complaint() {
                     {/* Fetch and display comments for each complaint */}
                     {complaint.comments && complaint.comments.map(comment => (
                       <div key={comment.id} className="comment-item">
-                        <p><strong>{comment.username}</strong>: {comment.message}</p>
-                        <p>{format(comment.timestamp, 'd MMMM yyyy, HH:mm')}</p>
+                        <p><strong style={{ fontSize: "16px" }}>{comment.username}</strong>
+                        <span style={{ color: "grey" }}>
+                          {format(comment.timestamp, "  d MMMM yyyy, HH:mm")}
+                        </span></p>
+                        <p> {comment.message}</p>
+                       
                       </div>
                     ))}
                   </div>

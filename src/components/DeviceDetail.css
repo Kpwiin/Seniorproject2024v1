@@ -21,16 +21,18 @@ html, body {
 
 .App-body {
   display: flex;
-  flex-wrap: wrap; 
+  flex-wrap: wrap;
   gap: 20px;
-  align-items: start;
+  align-items: center;
+  justify-content: center; 
   padding: 20px;
   background-color: #121212;
   min-height: 100vh;
-  margin-left: 250px;
   margin-top: 60px;
   width: calc(100% - 250px);
   max-width: 1200px;
+  margin-left: auto; 
+  margin-right: auto;
 }
 
 .graph-container {
@@ -43,6 +45,7 @@ html, body {
   border-color: #343434;
   background-clip: padding-box;
   overflow: hidden;
+  justify-content: center;
 }
 
 .history-container {
@@ -285,3 +288,9 @@ nav ul li a:hover {
   color: rgb(9, 161, 249); 
   text-decoration: underline;
 }
+
+#current {
+  scroll-margin-top: 100px; 
+}
+
+

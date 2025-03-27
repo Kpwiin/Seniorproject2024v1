@@ -15,12 +15,12 @@ const DashboardContainer = styled.div`
 
 const MainContent = styled.div`
   flex: 1;
-  margin-left: 250px;
   position: relative;
   background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
 `;
 
 const MapContainer = styled.div`
+  margin-top: 65px;
   width: 100%;
   height: 100vh;
   position: relative;
@@ -31,13 +31,13 @@ const MapContainer = styled.div`
 
 const DevicesOverlay = styled.div`
   position: absolute;
-  top: 80px;
+  top: 50px;
   left: 20px;
   background: rgba(15, 15, 15, 0.95);
   padding: 20px;
   border-radius: 16px;
   width: 300px;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 150px);
   overflow-y: auto;
   z-index: 1000;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);

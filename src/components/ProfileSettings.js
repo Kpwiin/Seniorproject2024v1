@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { FiUser, FiBell, FiLogOut, FiCamera, FiChevronRight, FiMail, FiLock, FiVolume2 } from 'react-icons/fi';
+import { useEffect } from "react";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
+
 
 const Container = styled.div`
   padding: 40px;
@@ -23,6 +27,7 @@ const ContentWrapper = styled.div`
 `;
 
 const Title = styled.h1`
+  margin-top: 60px;
   color: #FFFFFF;
   font-size: 32px;
   margin-bottom: 30px;
@@ -430,8 +435,29 @@ const SliderValues = styled.div`
 function Settings() {
   const [activeMenu, setActiveMenu] = useState('account');
   const [newsEnabled, setNewsEnabled] = useState(true);
-const [noiseEnabled, setNoiseEnabled] = useState(true);
+  const [noiseEnabled, setNoiseEnabled] = useState(true);
   const [threshold, setThreshold] = useState(80);
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    const auth = getAuth();
+    const db = getFirestore();
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDocRef = doc(db, "UserInfo", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          setUsername(userDoc.data().username || "");
+          setEmail(userDoc.data().email || "");
+        }
+      }
+    });
+
+    return () => unsubscribe(); // Cleanup on unmount
+  }, []);
 
   const renderContent = () => {
     if (activeMenu === 'notifications') {
@@ -585,32 +611,39 @@ const [noiseEnabled, setNoiseEnabled] = useState(true);
 
     return (
       <FormContainer>
-        <FormSection>
-          <FormTitle>Edit your profile</FormTitle>
-          <FormGroup>
-            <Label>
-              <FiUser className="label-icon" />
-              Username
-            </Label>
-            <Input type="text" defaultValue="Username123" placeholder="Enter your username" />
-          </FormGroup>
-          <FormGroup>
-            <Label>
-              <FiMail className="label-icon" />
-              Email
-            </Label>
-            <Input type="email" defaultValue="ABc12123@gmail.com" placeholder="Enter your email" />
-          </FormGroup>
-          <FormGroup>
-            <Label>
-              <FiLock className="label-icon" />
-              Password
-            </Label>
-            <Input type="password" defaultValue="••••••••••••••••••••••••" />
-            <ChangePasswordLink>Change password</ChangePasswordLink>
-          </FormGroup>
-          <SaveButton>Save changes</SaveButton>
-        </FormSection>
+         <FormSection>
+        <FormTitle>Edit your profile</FormTitle>
+        <FormGroup>
+          <Label>
+            <FiUser className="label-icon" />
+            Username
+          </Label>
+          <Input 
+          type="text" 
+          value={username}
+          placeholder="Enter your username"
+        />
+
+        </FormGroup>
+
+
+        <FormGroup>
+          <Label>
+            <FiMail className="label-icon" />
+            Email
+          </Label>
+          <Input type="email" defaultValue={email} placeholder="Enter your email" />
+        </FormGroup>
+        <FormGroup>
+          <Label>
+            <FiLock className="label-icon" />
+            Password
+          </Label>
+          <Input type="password" defaultValue="••••••••••••••••••••••••" />
+          <ChangePasswordLink>Change password</ChangePasswordLink>
+        </FormGroup>
+        <SaveButton>Save changes</SaveButton>
+      </FormSection>
 
         <ProfileSection>
           <h3>Your Profile Picture</h3>

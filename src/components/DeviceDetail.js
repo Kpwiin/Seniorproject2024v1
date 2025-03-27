@@ -26,7 +26,6 @@ function DeviceDetail() {
       </div>
         <div id="current" className="current-container">
         <CurrentSoundLevel deviceId={deviceId} />
-
         </div>
         <div id="graph" className="graph-container">
           <LineGraph deviceId={deviceId} />

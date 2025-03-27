@@ -157,7 +157,7 @@ const Sidebar = styled.div`
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
   transform: translateX(${props => props.isOpen ? '0' : '-100%'});
   transition: transform 0.3s ease;
-   z-index: 100;
+   z-index: 10000;
 `;
 
 const Logo = styled.div`

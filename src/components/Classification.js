@@ -249,7 +249,7 @@ function Classification() {
   return (
     <Container>
       <ContentWrapper>
-        <Title>Classification</Title>
+        <h1>Classification</h1>
         
         {!isClassifying && !results && (
           <>

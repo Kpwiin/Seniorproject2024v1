@@ -329,7 +329,24 @@ const filteredDevices = devices
   const handleSortChange = (event) => {
     setSortByDateOrder(event.target.value);
   };
-
+  
+  const handleVerifyChange = async (soundId, newVerifyStatus) => {
+    try {
+      const soundRef = doc(db, 'sounds', soundId); // Use `db` to match your Firestore instance
+      await updateDoc(soundRef, { verify: newVerifyStatus });
+  
+      // Update state to reflect the change immediately
+      setSoundLevels((prevLevels) => 
+        prevLevels.map((sound) => 
+          sound.id === soundId ? { ...sound, verify: newVerifyStatus } : sound
+        )
+      );
+    } catch (error) {
+      console.error("Error updating verification status:", error);
+    }
+  };
+  
+  
 
   const [timeFilter, setTimeFilter] = useState("1 hour");
   const [dangerFilter, setDangerFilter] = useState("all"); 
@@ -582,6 +599,12 @@ const filteredDevices = devices
                                             <SoundIcon onClick={() => sound.sample ? new Audio(sound.sample).play() : alert("No Audio Available")}>
                                               🔊
                                             </SoundIcon>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={sound.verify || false} 
+                                                onChange={() => handleVerifyChange(sound.id, !sound.verify)} 
+                                                style={{ marginLeft: "10px", cursor: "pointer" }}
+                                              />
                                           </>
                                         )}
                                       </>
