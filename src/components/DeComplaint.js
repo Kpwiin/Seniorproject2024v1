@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy, limit, startAfter, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, startAfter, deleteDoc, doc, updateDoc, addDoc, where, serverTimestamp } from 'firebase/firestore';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useNavigate } from 'react-router-dom'; 
-import {db} from '../firebase'; 
+import { db } from '../firebase'; 
 import './Complaint.css';
+import { onAuthStateChanged } from 'firebase/auth'; 
+import { auth } from '../firebase';
 import { useParams } from 'react-router-dom';
-
-
 
 function DeComplaint() {
   const [complaints, setComplaints] = useState([]);
@@ -14,42 +14,59 @@ function DeComplaint() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [newComment, setNewComment] = useState('');
   const complaintsPerPage = 3;
+  const commentsPerComplaint = 2; 
+  const commentsToLoadOnClick = 5; 
   const navigate = useNavigate(); 
+  const [username, setUsername] = useState('');
+  const [commentsState, setCommentsState] = useState({});
   const { deviceName } = useParams();
-  const decodedDeviceName = decodeURIComponent(deviceName);
-
+  const decodedDeviceName = deviceName ? decodeURIComponent(deviceName) : null;
 
   useEffect(() => {
     fetchComplaints();
-  }, []);
+  }, [deviceName]);
 
-  const fetchComplaints = async (isNext = false) => {
+  const fetchComplaints = async (isLoadMore = false) => {
     setLoading(true);
     setError(null);
+  
     try {
-      let q = query(
-        collection(db, 'complaints'),
-        orderBy('timestamp', 'desc'),
-        limit(complaintsPerPage)
-      );
+      let complaintsRef = collection(db, 'complaints');
+      let complaintsQuery;
   
-      if (isNext && lastDoc) {
-        q = query(q, startAfter(lastDoc));
+      if (decodedDeviceName) {
+        // Fetch complaints where `deviceName` matches `decodedDeviceName`
+        complaintsQuery = query(
+          complaintsRef,
+          where("deviceName", "==", decodedDeviceName),
+          orderBy('timestamp', 'desc'),
+          ...(isLoadMore && lastDoc ? [startAfter(lastDoc)] : []),
+          limit(complaintsPerPage)
+        );
+      } else {
+        // Fetch all complaints if no `deviceName` filter
+        complaintsQuery = query(
+          complaintsRef,
+          orderBy('timestamp', 'desc'),
+          ...(isLoadMore && lastDoc ? [startAfter(lastDoc)] : []),
+          limit(complaintsPerPage)
+        );
       }
-
-      const querySnapshot = await getDocs(q);
-      const complaintsData = querySnapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp.toDate(),
-          status: doc.data().status || false,
-        }))
-        .filter(complaint => complaint.location === decodedDeviceName);
   
-      setComplaints(isNext ? [...complaints, ...complaintsData] : complaintsData);
-      setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
+      const querySnapshot = await getDocs(complaintsQuery);
+  
+      let complaintsData = querySnapshot.docs.map(docSnapshot => ({
+        id: docSnapshot.id,
+        ...docSnapshot.data(),
+        timestamp: docSnapshot.data().timestamp.toDate(),
+      }));
+  
+      // Update state
+      setComplaints(prevComplaints => isLoadMore ? [...prevComplaints, ...complaintsData] : complaintsData);
+      setLastDoc(querySnapshot.docs.length > 0 ? querySnapshot.docs[querySnapshot.docs.length - 1] : null);
+  
     } catch (error) {
       console.error('Error fetching complaints:', error);
       setError('Failed to load complaints. Please try again later.');
@@ -58,35 +75,119 @@ function DeComplaint() {
     }
   };
   
-
-  const deleteComplaint = async (id) => {
-    setDeletingId(id);
+  
+  const loadMoreComments = async (complaintId) => {
     try {
-      await deleteDoc(doc(db, 'complaints', id));
-      setComplaints(prevComplaints => prevComplaints.filter(complaint => complaint.id !== id));
-      console.log(`Complaint ${id} deleted successfully.`);
-    } catch (error) {
-      console.error('Error deleting complaint:', error);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const toggleStatus = async (id, currentStatus) => {
-    try {
-      const docRef = doc(db, 'complaints', id);
-      await updateDoc(docRef, {
-        status: !currentStatus
+      const { lastDoc, comments } = commentsState[complaintId];
+  
+      if (!lastDoc) return; // No more comments to load
+  
+      const commentsQuery = query(
+        collection(db, 'complaints', complaintId, 'comments'),
+        orderBy('timestamp', 'asc'),
+        startAfter(lastDoc),
+        limit(commentsToLoadOnClick) // Load more comments (5 comments)
+      );
+  
+      const commentsSnapshot = await getDocs(commentsQuery);
+      const newComments = commentsSnapshot.docs.map(commentDoc => ({
+        id: commentDoc.id,
+        ...commentDoc.data(),
+        timestamp: commentDoc.data().timestamp.toDate(),
+      }));
+  
+      // Update state with new comments
+      setCommentsState(prevState => {
+        const newCommentsState = { ...prevState };
+        newCommentsState[complaintId] = {
+          lastDoc: commentsSnapshot.docs[commentsSnapshot.docs.length - 1],
+          comments: [...comments, ...newComments],
+        };
+        return newCommentsState;
       });
+  
+      // Update complaint comments list
       setComplaints(prevComplaints =>
-        prevComplaints.map(complaint =>
-          complaint.id === id ? { ...complaint, status: !currentStatus } : complaint
+        prevComplaints.map(comp =>
+          comp.id === complaintId ? { ...comp, comments: [...comp.comments, ...newComments] } : comp
         )
       );
     } catch (error) {
-      console.error('Error updating status:', error);
+      console.error('Error loading more comments:', error);
     }
   };
+
+  const deleteComplaint = async (id) => {
+    const confirmed = window.confirm('Are you sure you want to delete this complaint?'); // Confirmation alert
+    if (confirmed) {
+      setDeletingId(id);
+      try {
+        await deleteDoc(doc(db, 'complaints', id));
+        setComplaints(prevComplaints => prevComplaints.filter(complaint => complaint.id !== id));
+        console.log(`Complaint ${id} deleted successfully.`);
+      } catch (error) {
+        console.error('Error deleting complaint:', error);
+      } finally {
+        setDeletingId(null);
+      }
+    }
+  };  
+
+  const toggleStatus = async (id, currentStatus) => {
+    const confirmed = window.confirm(`Are you sure you want to mark this complaint as ${currentStatus ? 'Unverified' : 'Verified'}?`); // Confirmation alert
+    if (confirmed) {
+      try {
+        const docRef = doc(db, 'complaints', id);
+        await updateDoc(docRef, {
+          status: !currentStatus
+        });
+        setComplaints(prevComplaints =>
+          prevComplaints.map(complaint =>
+            complaint.id === id ? { ...complaint, status: !currentStatus } : complaint
+          )
+        );
+      } catch (error) {
+        console.error('Error updating status:', error);
+      }
+    }
+  };
+  
+  const handleAddComment = async (complaintId) => {
+    if (newComment.trim()) {
+      const confirmed = window.confirm('Are you sure you want to add this comment?'); // Confirmation alert
+      if (confirmed) {
+        try {
+          if (!username) {
+            alert('You must be logged in to comment!');
+            return;
+          }
+  
+          const commentRef = collection(db, 'complaints', complaintId, 'comments');
+          await addDoc(commentRef, {
+            username: username, // Use the username from the state
+            message: newComment,
+            timestamp: serverTimestamp(),
+          });
+          setNewComment('');
+          fetchComplaints(); // Refetch complaints to update comments
+        } catch (error) {
+          console.error('Error adding comment:', error);
+        }
+      }
+    }
+  };
+  
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUsername(user.displayName); // Set the authenticated user's display name
+      } else {
+        setUsername(''); // Reset if no user is logged in
+      }
+    });
+    return () => unsubscribe(); // Cleanup the listener on component unmount
+  }, []);
 
   const handleNavigation = (path) => {
     navigate(path); 
@@ -95,15 +196,14 @@ function DeComplaint() {
   return (
     <div className="Complaint">
       <header className="Complaint-header">
-        <h1>Complaints for {decodedDeviceName}</h1>
-       
+        <h1>Complaints</h1>
       </header>
 
       <main className="Complaint-main">
-        
         <div className="add-complaint"> 
           <button onClick={() => handleNavigation('/complaints/add')} className="add-complaint-button">Add Complaint</button>
         </div>
+        
         <div className="complaint-list">
           {complaints.map(complaint => (
             <div key={complaint.id} className="complaint-card">
@@ -123,6 +223,45 @@ function DeComplaint() {
                   </strong>
                 </p>
                 <p className="message">{complaint.message}</p>
+
+                {/* Comments section */}
+                <div className="comments-section">
+                  <h4>Comments:</h4>
+                  <div className="comments-list">
+                    {/* Fetch and display comments for each complaint */}
+                    {complaint.comments && complaint.comments.map(comment => (
+                      <div key={comment.id} className="comment-item">
+                        <p><strong style={{ fontSize: "16px" }}>{comment.username}</strong>
+                        <span style={{ color: "grey" }}>
+                          {format(comment.timestamp, "  d MMMM yyyy, HH:mm")}
+                        </span></p>
+                        <p> {comment.message}</p>
+                       
+                      </div>
+                    ))}
+                  </div>
+                  {/* Load More Comments button */}  
+                 <button 
+                  onClick={() => loadMoreComments(complaint.id)}
+                  className="load-more-comments"
+                  >
+                  Load More Comments
+                  </button>
+
+                  {/* Add a new comment */}
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Add a comment"
+                    className="new-comment-textarea"
+                  ></textarea>
+                  <button
+                    onClick={() => handleAddComment(complaint.id)}
+                    className="add-comment-button"
+                  >
+                    Add Comment
+                  </button>
+                </div>
               </div>
               <div className="button-container">
                 <button 
@@ -152,8 +291,14 @@ function DeComplaint() {
           <p>Loading...</p>
         ) : (
           <div className="pagination-controls">
-            <button onClick={() => fetchComplaints(true)} disabled={loading || !lastDoc} className="more-button">View More</button>
-          </div>
+    <button 
+      onClick={() => fetchComplaints(true)} 
+      disabled={loading || !lastDoc} 
+      className="more-button"
+    >
+      View More
+    </button>
+  </div>
         )}
       </main>
     </div>

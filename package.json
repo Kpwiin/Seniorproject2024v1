@@ -26,6 +26,7 @@
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^7.1.0",
     "react-scripts": "^5.0.1",
+    "react-tooltip": "^5.28.0",
     "recharts": "^2.15.0",
     "styled-components": "^6.1.14",
     "web-vitals": "^4.2.4"

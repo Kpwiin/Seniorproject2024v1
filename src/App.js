@@ -10,11 +10,11 @@ import ProfileSettings from './components/ProfileSettings';
 import Classification from './components/Classification';
 import Login from './components/Login';
 import Register from './components/Register';
-import Userdevicelist from './components/Userdevicelist';
 import DeviceDetail from './components/DeviceDetail';
 import EditDevice from './components/EditDevice';
 import DeComplaint from './components/DeComplaint';
-import VerifyDevice from './components/VerifyDevice';
+import {AuthProvider} from './components/AuthContext';
+import AdminRoute from './components/AdminRoute';
 
 const Layout = ({ children }) => {
   return (
@@ -27,29 +27,31 @@ const Layout = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <div className="App">
-        <Routes>
-          {/* หน้าที่ไม่ต้องการ Navbar */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+    <AuthProvider>
+      <Router>
+        <div className="App">
+          <Routes>
+            {/* หน้าที่ไม่ต้องการ Navbar */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* หน้าที่ต้องการ Navbar */}
-          <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
-          <Route path="/devices" element={<Layout><DeviceManagement /></Layout>} />
-          <Route path="/device/:id/settings" element={<Layout><DeviceSettings /></Layout>} />
-          <Route path="/complaints" element={<Layout><Complaint /></Layout>} />
-          <Route path="/complaints/add" element={<Layout><ComplaintAdd /></Layout>} />
-          <Route path="/settings" element={<Layout><ProfileSettings /></Layout>} />
-          <Route path="/classification" element={<Layout><Classification /></Layout>} />
-          <Route path="/" element={<Layout><Userdevicelist /></Layout>} />
-          <Route path="/device/:deviceId/:deviceName" element={<Layout><DeviceDetail /></Layout>} />
-          <Route path="/device/:id/edit" element={<Layout><EditDevice /></Layout>} />
-          <Route path="/device-complaints/:deviceName" element={<Layout><DeComplaint /></Layout>} />
-          <Route path="/devices/verify" element={<Layout><VerifyDevice /></Layout>} />
-        </Routes>
-      </div>
-    </Router>
+            {/* หน้าที่ต้องการ Navbar */}
+            <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+            <Route path="/device/:id/settings" element={<Layout><DeviceSettings /></Layout>} />
+            <Route path="/complaints" element={<Layout><Complaint /></Layout>} />
+            <Route path="/complaints/add" element={<Layout><ComplaintAdd /></Layout>} />
+            <Route path="/settings" element={<Layout><ProfileSettings /></Layout>} />
+            <Route path="/classification" element={<Layout><Classification /></Layout>} />
+            <Route path="/device/:deviceId/:deviceName" element={<Layout><DeviceDetail /></Layout>} />
+            <Route path="/device/:id/edit" element={<Layout><EditDevice /></Layout>} />
+            <Route path="/complaints/:deviceName" element={<Layout><Complaint /></Layout>} />
+
+            {/* หน้าที่ต้องเป็น Admin เท่านั้น */}
+            <Route path="/managedevices" element={<AdminRoute><Layout><DeviceManagement /></Layout></AdminRoute>} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 

@@ -347,9 +347,9 @@ function Navbar() {
         </MenuItem>
         
         <MenuItem 
-          href="/devices" 
-          active={currentPath === '/devices'}
-          onClick={handleMenuClick('/devices')}
+          href="/managedevices" 
+          active={currentPath === '/managedevices'}
+          onClick={handleMenuClick('/managedevices')}
         >
           <FaServer />
           <span>Manage Devices</span>

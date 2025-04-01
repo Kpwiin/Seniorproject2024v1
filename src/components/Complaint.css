@@ -106,7 +106,7 @@
   
   .add-complaint-button {
     margin-bottom: 20px;
-    padding: 10px 15px;
+    padding: 10px 12px;
     color: white;
     font-size: 16px;
     font-weight: bold;
@@ -202,4 +202,29 @@
     color: rgb(0, 0, 0);
     cursor: pointer;
     margin-bottom: 1vh;
+  }
+
+  select {
+    width: auto;
+    max-width: 200px;
+    padding: 5px;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    color: #333;
+    font-size: 16px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    margin-left: 7px;
+  }
+  
+  select:focus {
+    border-color: #0056b3;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+  }
+  
+  option {
+    background-color: white;
+    color: #333;
+    font-size: 16px;
   }

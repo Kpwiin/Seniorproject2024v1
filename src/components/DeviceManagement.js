@@ -5,7 +5,8 @@ import { db } from '../firebase';
 import { collection, getDocs, query, where, updateDoc, doc} from 'firebase/firestore';
 import { FiSettings } from 'react-icons/fi';
 import AddDevice from './AddDevice';
-
+import { Tooltip } from 'react-tooltip';
+import { auth } from "../firebase";
 const Container = styled.div`
   padding: 20px;
   width: 100%;
@@ -332,21 +333,28 @@ const filteredDevices = devices
   
   const handleVerifyChange = async (soundId, newVerifyStatus) => {
     try {
-      const soundRef = doc(db, 'sounds', soundId); // Use `db` to match your Firestore instance
-      await updateDoc(soundRef, { verify: newVerifyStatus });
+      const soundRef = doc(db, "sounds", soundId);
+      
+      const user = auth.currentUser;
+      const verifierName = user ? user.displayName || "Unknown User" : "Unknown User";
   
-      // Update state to reflect the change immediately
+      await updateDoc(soundRef, { 
+        verify: newVerifyStatus,
+        verifierName: newVerifyStatus ? verifierName : "", 
+      });
+  
       setSoundLevels((prevLevels) => 
         prevLevels.map((sound) => 
-          sound.id === soundId ? { ...sound, verify: newVerifyStatus } : sound
+          sound.id === soundId 
+            ? { ...sound, verify: newVerifyStatus, verifierName: newVerifyStatus ? verifierName : "" }
+            : sound
         )
       );
     } catch (error) {
       console.error("Error updating verification status:", error);
     }
   };
-  
-  
+
 
   const [timeFilter, setTimeFilter] = useState("1 hour");
   const [dangerFilter, setDangerFilter] = useState("all"); 
@@ -593,18 +601,36 @@ const filteredDevices = devices
                                         ) : (
                                           <>
                                             <span>{sound.formattedDate} - {sound.level} dB - </span>
-                                            <span onClick={() => handleEditClick(index, sound)} style={{ cursor: "pointer", textDecoration: "underline" }}>
-                                              {sound.result}
-                                            </span>
-                                            <SoundIcon onClick={() => sound.sample ? new Audio(sound.sample).play() : alert("No Audio Available")}>
+                                            <span 
+                                                onClick={() => handleEditClick(index, sound)} 
+                                                style={{ cursor: "pointer", textDecoration: "underline" }}
+                                                data-tooltip-id={`tooltip-edit-${index}`}
+                                              >
+                                                {sound.result}
+                                              </span>
+                                            <Tooltip id={`tooltip-edit-${index}`} place="top" content="Edit classification result" />
+                                            <SoundIcon 
+                                              onClick={() => sound.sample ? new Audio(sound.sample).play() : alert("No Audio Available")}
+                                              data-tooltip-id={`tooltip-audio-${sound.id}`}
+                                            >
                                               🔊
                                             </SoundIcon>
+
+                                            <Tooltip id={`tooltip-audio-${sound.id}`} place="top" content="Listen to sample audio" />
                                             <input 
-                                                type="checkbox" 
-                                                checked={sound.verify || false} 
-                                                onChange={() => handleVerifyChange(sound.id, !sound.verify)} 
-                                                style={{ marginLeft: "10px", cursor: "pointer" }}
-                                              />
+                                              type="checkbox" 
+                                              checked={sound.verify || false} 
+                                              onChange={() => handleVerifyChange(sound.id, !sound.verify)} 
+                                              style={{ marginLeft: "10px", cursor: "pointer" }}
+                                              data-tooltip-id={`tooltip-${sound.id}`}
+                                            />
+
+                                            <Tooltip 
+                                              id={`tooltip-${sound.id}`} 
+                                              place="top" 
+                                              content={sound.verify ? `Verified by ${sound.verifierName}` : "Verify this noise"} 
+                                            />
+
                                           </>
                                         )}
                                       </>

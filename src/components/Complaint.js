@@ -6,6 +6,7 @@ import { db } from '../firebase';
 import './Complaint.css';
 import { onAuthStateChanged } from 'firebase/auth'; 
 import { auth } from '../firebase';
+import { useParams } from "react-router-dom";
 
 function Complaint() {
   const [complaints, setComplaints] = useState([]);
@@ -20,7 +21,9 @@ function Complaint() {
   const navigate = useNavigate(); 
   const [username, setUsername] = useState('');
   const [commentsState, setCommentsState] = useState({});
-
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [locations, setLocations] = useState([]);
+  const { deviceName } = useParams(); // Get the deviceName from URL
 
   useEffect(() => {
     fetchComplaints();
@@ -32,16 +35,17 @@ function Complaint() {
     setError(null);
     try {
       const complaintsData = [];
-      
+      const uniqueLocations = new Set();
+  
       // If loading more complaints, use the last document fetched
       const complaintsQuery = query(
         collection(db, 'complaints'),
         orderBy('timestamp', 'desc'),
         isLoadMore && lastDoc ? startAfter(lastDoc) : limit(complaintsPerPage)
       );
-    
+  
       const querySnapshot = await getDocs(complaintsQuery);
-    
+  
       // Handle complaints data
       for (const docSnapshot of querySnapshot.docs) {
         const complaintData = {
@@ -51,6 +55,11 @@ function Complaint() {
           status: docSnapshot.data().status || false,
         };
   
+        // Collect unique locations
+        if (complaintData.location) {
+          uniqueLocations.add(complaintData.location);
+        }
+  
         // Fetch comments as usual
         const commentsQuery = query(
           collection(db, 'complaints', docSnapshot.id, 'comments'),
@@ -58,28 +67,29 @@ function Complaint() {
           limit(commentsPerComplaint)
         );
         const commentsSnapshot = await getDocs(commentsQuery);
-    
+  
         const commentsData = commentsSnapshot.docs.map(commentDoc => ({
           id: commentDoc.id,
           ...commentDoc.data(),
           timestamp: commentDoc.data().timestamp.toDate(),
         }));
-    
+  
         complaintData.comments = commentsData;
-    
+  
         // Store the last document of comments for pagination
         const lastCommentDoc = commentsSnapshot.docs[commentsSnapshot.docs.length - 1];
         setCommentsState(prevState => ({
           ...prevState,
           [docSnapshot.id]: { lastDoc: lastCommentDoc, comments: commentsData },
         }));
-    
+  
         complaintsData.push(complaintData);
       }
-    
-      // Update complaints state and the lastDoc state for pagination
+  
+      // Update state
       setComplaints(prevComplaints => isLoadMore ? [...prevComplaints, ...complaintsData] : complaintsData);
       setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
+      setLocations(Array.from(uniqueLocations)); // Store unique locations
   
     } catch (error) {
       console.error('Error fetching complaints:', error);
@@ -88,6 +98,7 @@ function Complaint() {
       setLoading(false);
     }
   };
+  
   
   
   const loadMoreComments = async (complaintId) => {
@@ -212,111 +223,112 @@ function Complaint() {
       <header className="Complaint-header">
         <h1>Complaints</h1>
       </header>
-
+  
       <main className="Complaint-main">
         <div className="add-complaint"> 
           <button onClick={() => handleNavigation('/complaints/add')} className="add-complaint-button">Add Complaint</button>
         </div>
-        
+  
+        {/* Dropdown for filtering by location */}
+        <select onChange={(e) => setSelectedLocation(e.target.value)} value={selectedLocation}>
+          <option value="">All Locations</option>
+          {locations.map((loc, index) => (
+            <option key={index} value={loc}>{loc}</option>
+          ))}
+        </select>
+  
+        {/* Complaint List with Filtering and Slicing Applied */}
         <div className="complaint-list">
-          {complaints.map(complaint => (
-            <div key={complaint.id} className="complaint-card">
-              <div className="complaint-content">
-                <p>
-                  <strong>{complaint.username}</strong>
-                  <span className="added"> added a complaint {formatDistanceToNow(complaint.timestamp)} ago</span>
-                  <span className="added-date-time"> ({format(complaint.timestamp, 'd MMMM yyyy, HH:mm')})</span>
-                </p>
-                <p><strong>Location: <span className="location">{complaint.location}</span></strong></p>
-                <p className="com-status">
-                  <strong>Status: 
-                    {complaint.status ? 
-                     <span className="verified"> Verified</span> : 
-                     <span className="unverified"> Unverified</span>
-                    }
-                  </strong>
-                </p>
-                <p className="message">{complaint.message}</p>
+          {complaints
+            .filter(complaint => !selectedLocation || complaint.location === selectedLocation) // Filter logic
 
-                {/* Comments section */}
-                <div className="comments-section">
-                  <h4>Comments:</h4>
-                  <div className="comments-list">
-                    {/* Fetch and display comments for each complaint */}
-                    {complaint.comments && complaint.comments.map(comment => (
-                      <div key={comment.id} className="comment-item">
-                        <p><strong style={{ fontSize: "16px" }}>{comment.username}</strong>
-                        <span style={{ color: "grey" }}>
-                          {format(comment.timestamp, "  d MMMM yyyy, HH:mm")}
-                        </span></p>
-                        <p> {comment.message}</p>
-                       
-                      </div>
-                    ))}
+            .map(complaint => (
+              <div key={complaint.id} className="complaint-card">
+                <div className="complaint-content">
+                  <p>
+                    <strong>{complaint.username}</strong>
+                    <span className="added"> added a complaint {formatDistanceToNow(complaint.timestamp)} ago</span>
+                    <span className="added-date-time"> ({format(complaint.timestamp, 'd MMMM yyyy, HH:mm')})</span>
+                  </p>
+                  <p><strong>Location: <span className="location">{complaint.location}</span></strong></p>
+                  <p className="com-status">
+                    <strong>Status: 
+                      {complaint.status ? 
+                       <span className="verified"> Verified</span> : 
+                       <span className="unverified"> Unverified</span>
+                      }
+                    </strong>
+                  </p>
+                  <p className="message">{complaint.message}</p>
+  
+                  {/* Comments section */}
+                  <div className="comments-section">
+                    <h4>Comments:</h4>
+                    <div className="comments-list">
+                      {complaint.comments && complaint.comments.map(comment => (
+                        <div key={comment.id} className="comment-item">
+                          <p><strong style={{ fontSize: "16px" }}>{comment.username}</strong>
+                          <span style={{ color: "grey" }}>
+                            {format(comment.timestamp, "  d MMMM yyyy, HH:mm")}
+                          </span></p>
+                          <p> {comment.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => loadMoreComments(complaint.id)} className="load-more-comments">
+                      Load More Comments
+                    </button>
+  
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Add a comment"
+                      className="new-comment-textarea"
+                    ></textarea>
+                    <button onClick={() => handleAddComment(complaint.id)} className="add-comment-button">
+                      Add Comment
+                    </button>
                   </div>
-                  {/* Load More Comments button */}  
-                 <button 
-                  onClick={() => loadMoreComments(complaint.id)}
-                  className="load-more-comments"
+                </div>
+  
+                <div className="button-container">
+                  <button 
+                    onClick={() => deleteComplaint(complaint.id)} 
+                    className="remove-button"
+                    disabled={deletingId === complaint.id}
                   >
-                  Load More Comments
+                    {deletingId === complaint.id ? 'Removing...' : 'Remove'}
                   </button>
-
-                  {/* Add a new comment */}
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Add a comment"
-                    className="new-comment-textarea"
-                  ></textarea>
-                  <button
-                    onClick={() => handleAddComment(complaint.id)}
-                    className="add-comment-button"
-                  >
-                    Add Comment
+                  <button onClick={() => toggleStatus(complaint.id, complaint.status)} className="status-toggle-button">
+                    {complaint.status ? 
+                     <span className="status-toggle-button-ver">Mark as Unverified</span> : 
+                     <span className="status-toggle-button-unver">Mark as Verified</span>
+                    }
                   </button>
                 </div>
               </div>
-              <div className="button-container">
-                <button 
-                  onClick={() => deleteComplaint(complaint.id)} 
-                  className="remove-button"
-                  disabled={deletingId === complaint.id}
-                >
-                  {deletingId === complaint.id ? 'Removing...' : 'Remove'}
-                </button>
-                <button 
-                  onClick={() => toggleStatus(complaint.id, complaint.status)} 
-                  className="status-toggle-button"
-                >
-                  {complaint.status ? 
-                   <span className="status-toggle-button-ver">Mark as Unverified</span> : 
-                   <span className="status-toggle-button-unver">Mark as Verified</span>
-                  }
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
         </div>
-
+  
         {error && <p className="error-message">{error}</p>}
-
+  
         {loading ? (
           <p>Loading...</p>
         ) : (
           <div className="pagination-controls">
-    <button 
-      onClick={() => fetchComplaints(true)} 
-      disabled={loading || !lastDoc} 
-      className="more-button"
-    >
-      View More
-    </button>
-  </div>
+            <button 
+              onClick={() => fetchComplaints(true)} 
+              disabled={loading || !lastDoc} 
+              className="more-button"
+            >
+              View More
+            </button>
+          </div>
         )}
       </main>
     </div>
   );
+  
 }
 
 export default Complaint;
