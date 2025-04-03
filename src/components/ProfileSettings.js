@@ -4,6 +4,9 @@ import { FiUser, FiBell, FiLogOut, FiCamera, FiChevronRight, FiMail, FiLock, FiV
 import { useEffect } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
+import { signOut } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+import { auth } from "../firebase"; 
 
 
 const Container = styled.div`
@@ -439,6 +442,7 @@ function Settings() {
   const [threshold, setThreshold] = useState(80);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const navigate = useNavigate();  
 
   useEffect(() => {
     const auth = getAuth();
@@ -458,7 +462,20 @@ function Settings() {
 
     return () => unsubscribe(); // Cleanup on unmount
   }, []);
-
+  
+  const handleSignOut = async () => {
+    const confirmLogout = window.confirm("Are you sure you want to log out?");
+    
+    if (confirmLogout) {
+      try {
+        await signOut(auth);
+        navigate('/login'); // Redirect to login page
+      } catch (error) {
+        console.error('Error signing out:', error);
+      }
+    }
+  };  
+  
   const renderContent = () => {
     if (activeMenu === 'notifications') {
       return (
@@ -682,7 +699,7 @@ function Settings() {
               Notification settings
               <FiChevronRight className="arrow" />
             </MenuItem>
-            <MenuItem>
+            <MenuItem onClick={handleSignOut}>
               <FiLogOut className="icon" />
               Log Out
               <FiChevronRight className="arrow" />

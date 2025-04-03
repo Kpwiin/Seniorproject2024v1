@@ -559,20 +559,20 @@ const filteredDevices = devices
                                     style={{
                                       color: sound.color,
                                       display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",  
+                                      alignItems: "center", 
+                                      justifyContent: "space-between", 
                                       gap: "10px",  
                                       padding: "2px",
                                       fontSize: "16px",
-                                      width: "100%", 
-                                      textAlign: "center", 
+                                      width: "100%",  
+                                      
                                     }}
                                   >
                                     {sound.level > 85 ? (
                                       <>
                                         {editingIndex === index ? (
                                           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                                            <span>{sound.formattedDate} - {sound.level} dB - </span>
+                                            <span>{sound.formattedDate} - {sound.level} dB  </span>
                                             <select
                                               value={editedData.result || sound.result}
                                               onChange={(e) => handleChange(e, "result")}
@@ -600,7 +600,7 @@ const filteredDevices = devices
                                           </div>
                                         ) : (
                                           <>
-                                            <span>{sound.formattedDate} - {sound.level} dB - </span>
+                                            <span>{sound.formattedDate} - {sound.level} dB </span>
                                             <span 
                                                 onClick={() => handleEditClick(index, sound)} 
                                                 style={{ cursor: "pointer", textDecoration: "underline" }}

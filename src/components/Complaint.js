@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy, limit, startAfter, deleteDoc, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, startAfter, deleteDoc, doc, updateDoc, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useNavigate } from 'react-router-dom'; 
 import { db } from '../firebase'; 
@@ -29,54 +29,67 @@ function Complaint() {
     fetchComplaints();
   }, []);
 
-
-  const fetchComplaints = async (isLoadMore = false) => {
+  const fetchComplaints = async (isLoadMore = false, filterLocation = selectedLocation) => {
     setLoading(true);
     setError(null);
-    try {
-      const complaintsData = [];
-      const uniqueLocations = new Set();
   
-      // If loading more complaints, use the last document fetched
-      const complaintsQuery = query(
-        collection(db, 'complaints'),
+    try {
+      let complaintsQuery = collection(db, 'complaints'); // Base collection reference
+  
+      if (filterLocation) {
+        console.log("Filtering by location:", filterLocation); // Debugging log
+        complaintsQuery = query(complaintsQuery, where('location', '==', filterLocation));
+      }
+  
+      complaintsQuery = query(
+        complaintsQuery,
         orderBy('timestamp', 'desc'),
         isLoadMore && lastDoc ? startAfter(lastDoc) : limit(complaintsPerPage)
       );
   
+      console.log("Fetching complaints with query:", complaintsQuery); // Debugging log
+  
       const querySnapshot = await getDocs(complaintsQuery);
   
-      // Handle complaints data
+      if (querySnapshot.empty) {
+        console.log("No complaints found."); // Debugging log
+        setComplaints([]); // Ensure UI updates
+        setLoading(false);
+        return;
+      }
+  
+      const complaintsData = [];
+      const uniqueLocations = new Set();
+  
       for (const docSnapshot of querySnapshot.docs) {
         const complaintData = {
           id: docSnapshot.id,
           ...docSnapshot.data(),
-          timestamp: docSnapshot.data().timestamp.toDate(),
+          timestamp: docSnapshot.data().timestamp?.toDate() || new Date(),
           status: docSnapshot.data().status || false,
         };
   
-        // Collect unique locations
         if (complaintData.location) {
           uniqueLocations.add(complaintData.location);
         }
   
-        // Fetch comments as usual
+        // Fetch comments
         const commentsQuery = query(
           collection(db, 'complaints', docSnapshot.id, 'comments'),
           orderBy('timestamp', 'asc'),
           limit(commentsPerComplaint)
         );
-        const commentsSnapshot = await getDocs(commentsQuery);
   
+        const commentsSnapshot = await getDocs(commentsQuery);
         const commentsData = commentsSnapshot.docs.map(commentDoc => ({
           id: commentDoc.id,
           ...commentDoc.data(),
-          timestamp: commentDoc.data().timestamp.toDate(),
+          timestamp: commentDoc.data().timestamp?.toDate() || new Date(),
         }));
   
         complaintData.comments = commentsData;
   
-        // Store the last document of comments for pagination
+        // Store last document for pagination
         const lastCommentDoc = commentsSnapshot.docs[commentsSnapshot.docs.length - 1];
         setCommentsState(prevState => ({
           ...prevState,
@@ -86,10 +99,11 @@ function Complaint() {
         complaintsData.push(complaintData);
       }
   
-      // Update state
+      console.log("Fetched complaints:", complaintsData); // Debugging log
+  
       setComplaints(prevComplaints => isLoadMore ? [...prevComplaints, ...complaintsData] : complaintsData);
-      setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
-      setLocations(Array.from(uniqueLocations)); // Store unique locations
+      setLastDoc(querySnapshot.docs.length > 0 ? querySnapshot.docs[querySnapshot.docs.length - 1] : null);
+      setLocations(prev => Array.from(new Set([...prev, ...uniqueLocations])));
   
     } catch (error) {
       console.error('Error fetching complaints:', error);
@@ -157,7 +171,17 @@ function Complaint() {
       }
     }
   };  
-
+  
+  const handleFilterChange = (e) => {
+    const newLocation = e.target.value;
+    setSelectedLocation(newLocation);
+    setLastDoc(null);  // Reset pagination
+    setComplaints([]); // Clear complaints before fetching new ones
+    fetchComplaints(false, newLocation); // Fetch filtered complaints
+  };
+  
+  
+  
   const toggleStatus = async (id, currentStatus) => {
     const confirmed = window.confirm(`Are you sure you want to mark this complaint as ${currentStatus ? 'Unverified' : 'Verified'}?`); // Confirmation alert
     if (confirmed) {
@@ -230,13 +254,13 @@ function Complaint() {
         </div>
   
         {/* Dropdown for filtering by location */}
-        <select onChange={(e) => setSelectedLocation(e.target.value)} value={selectedLocation}>
+        <select onChange={handleFilterChange} value={selectedLocation}>
           <option value="">All Locations</option>
           {locations.map((loc, index) => (
             <option key={index} value={loc}>{loc}</option>
           ))}
         </select>
-  
+
         {/* Complaint List with Filtering and Slicing Applied */}
         <div className="complaint-list">
           {complaints
@@ -317,7 +341,7 @@ function Complaint() {
         ) : (
           <div className="pagination-controls">
             <button 
-              onClick={() => fetchComplaints(true)} 
+              onClick={() => fetchComplaints(true, selectedLocation)} 
               disabled={loading || !lastDoc} 
               className="more-button"
             >
