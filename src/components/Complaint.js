@@ -26,8 +26,16 @@ function Complaint() {
   const { deviceName } = useParams(); // Get the deviceName from URL
 
   useEffect(() => {
-    fetchComplaints();
-  }, []);
+    if (deviceName) {
+      const decoded = decodeURIComponent(deviceName);
+      setSelectedLocation(decoded);
+      setLastDoc(null); // Reset pagination
+      fetchComplaints(false, decoded);
+    } else {
+      fetchComplaints();
+    }
+  }, [deviceName]);
+  
 
   const fetchComplaints = async (isLoadMore = false, filterLocation = selectedLocation) => {
     setLoading(true);
@@ -52,11 +60,16 @@ function Complaint() {
       const querySnapshot = await getDocs(complaintsQuery);
   
       if (querySnapshot.empty) {
-        console.log("No complaints found."); // Debugging log
-        setComplaints([]); // Ensure UI updates
+        console.log("No more complaints found.");
+        if (!isLoadMore) {
+          setComplaints([]); // ล้างเฉพาะตอนที่ไม่ใช่ load more
+        }
+        setLastDoc(null); // ไม่มี document สุดท้ายแล้ว
         setLoading(false);
         return;
       }
+      
+      
   
       const complaintsData = [];
       const uniqueLocations = new Set();
@@ -245,9 +258,13 @@ function Complaint() {
   return (
     <div className="Complaint">
       <header className="Complaint-header">
-        <h1>Complaints</h1>
+        <h1>Complaints  {selectedLocation && (
+  <p style={{ marginTop: '8px' }}>
+   on <strong>{selectedLocation}</strong>
+  </p>
+)}</h1>
       </header>
-  
+
       <main className="Complaint-main">
         <div className="add-complaint"> 
           <button onClick={() => handleNavigation('/complaints/add')} className="add-complaint-button">Add Complaint</button>
@@ -339,16 +356,25 @@ function Complaint() {
         {loading ? (
           <p>Loading...</p>
         ) : (
-          <div className="pagination-controls">
-            <button 
-              onClick={() => fetchComplaints(true, selectedLocation)} 
-              disabled={loading || !lastDoc} 
-              className="more-button"
-            >
-              View More
-            </button>
-          </div>
+          <>
+            {lastDoc ? (
+              <div className="pagination-controls">
+                <button 
+                  onClick={() => fetchComplaints(true, selectedLocation)} 
+                  disabled={loading}
+                  className="more-button"
+                >
+                  View More
+                </button>
+              </div>
+            ) : (
+              complaints.length > 0 && (
+                <p className="no-more-message">No more complaints to load.</p>
+              )
+            )}
+          </>
         )}
+
       </main>
     </div>
   );
