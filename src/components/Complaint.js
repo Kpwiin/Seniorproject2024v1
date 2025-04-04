@@ -7,6 +7,7 @@ import './Complaint.css';
 import { onAuthStateChanged } from 'firebase/auth'; 
 import { auth } from '../firebase';
 import { useParams } from "react-router-dom";
+import { useAuth } from "./AuthContext";
 
 function Complaint() {
   const [complaints, setComplaints] = useState([]);
@@ -23,7 +24,9 @@ function Complaint() {
   const [commentsState, setCommentsState] = useState({});
   const [selectedLocation, setSelectedLocation] = useState('');
   const [locations, setLocations] = useState([]);
-  const { deviceName } = useParams(); // Get the deviceName from URL
+  const { deviceName } = useParams(); 
+  const { role } = useAuth();
+
 
   useEffect(() => {
     if (deviceName) {
@@ -333,20 +336,26 @@ function Complaint() {
                 </div>
   
                 <div className="button-container">
-                  <button 
-                    onClick={() => deleteComplaint(complaint.id)} 
-                    className="remove-button"
-                    disabled={deletingId === complaint.id}
-                  >
-                    {deletingId === complaint.id ? 'Removing...' : 'Remove'}
-                  </button>
-                  <button onClick={() => toggleStatus(complaint.id, complaint.status)} className="status-toggle-button">
-                    {complaint.status ? 
-                     <span className="status-toggle-button-ver">Mark as Unverified</span> : 
-                     <span className="status-toggle-button-unver">Mark as Verified</span>
-                    }
-                  </button>
+                  {(username === complaint.username || role === 'admin') && (
+                    <button 
+                      onClick={() => deleteComplaint(complaint.id)} 
+                      className="remove-button"
+                      disabled={deletingId === complaint.id}
+                    >
+                      {deletingId === complaint.id ? 'Removing...' : 'Remove'}
+                    </button>
+                  )}
+
+                  {role === 'admin' && (
+                    <button onClick={() => toggleStatus(complaint.id, complaint.status)} className="status-toggle-button">
+                      {complaint.status ? 
+                        <span className="status-toggle-button-ver">Mark as Unverified</span> : 
+                        <span className="status-toggle-button-unver">Mark as Verified</span>
+                      }
+                    </button>
+                  )}
                 </div>
+
               </div>
             ))}
         </div>

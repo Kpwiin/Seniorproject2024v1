@@ -5,6 +5,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { useAuth } from "./AuthContext";
+
 import { 
   FaHome,
   FaExclamationCircle,
@@ -255,6 +257,7 @@ function Navbar() {
   const [userProfile, setUserProfile] = useState(null);
   const [hasNotifications, setHasNotifications] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { role } = useAuth();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -346,14 +349,17 @@ function Navbar() {
           <span>Settings</span>
         </MenuItem>
         
-        <MenuItem 
-          href="/managedevices" 
-          active={currentPath === '/managedevices'}
-          onClick={handleMenuClick('/managedevices')}
-        >
-          <FaServer />
-          <span>Manage Devices</span>
-        </MenuItem>
+        {role === 'admin' && (
+          <MenuItem 
+            href="/managedevices" 
+            active={currentPath === '/managedevices'}
+            onClick={handleMenuClick('/managedevices')}
+          >
+            <FaServer />
+            <span>Manage Devices</span>
+          </MenuItem>
+        )}
+
       </Sidebar>
 
       <TopBar isSidebarOpen={isSidebarOpen}>
