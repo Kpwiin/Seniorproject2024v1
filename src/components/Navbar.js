@@ -348,7 +348,7 @@ function Navbar() {
           <FaCog />
           <span>Settings</span>
         </MenuItem>
-        
+         
         {role === 'admin' && (
           <MenuItem 
             href="/managedevices" 
@@ -360,6 +360,14 @@ function Navbar() {
           </MenuItem>
         )}
 
+          <MenuItem 
+            href="/mydevice" 
+            active={currentPath === '/mydevice'}
+            onClick={handleMenuClick('/mydevice')}
+          >
+            <FaServer />
+            <span>My Device</span>
+          </MenuItem>
       </Sidebar>
 
       <TopBar isSidebarOpen={isSidebarOpen}>
