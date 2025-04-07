@@ -227,11 +227,26 @@ function MyDevice() {
   }, []);
 
   const fetchDevices = async () => {
+    setLoading(true);
     try {
-      const querySnapshot = await getDocs(collection(db, 'devices'));
+      const user = auth.currentUser;
+      if (!user) {
+        console.error("No user is signed in.");
+        setDevices([]); 
+        return;
+      }
+  
+      const userName = user.displayName || user.uid; 
+  
+      const q = query(
+        collection(db, 'devices'),
+        where('addby', '==', userName)
+      );
+      
+      const querySnapshot = await getDocs(q);
       const deviceList = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
       setDevices(deviceList);
     } catch (error) {
@@ -240,6 +255,7 @@ function MyDevice() {
       setLoading(false);
     }
   };
+  
   
   const handleSettingsClick = (e, deviceId) => {
     e.stopPropagation(); 
@@ -436,7 +452,7 @@ const filteredDevices = devices
   
   return (
     <Container>
-      <Title>Manage Devices</Title>
+      <Title>My Device</Title>
       
       <TabContainer>
         <Tab active={activeTab === 'Devices list'} onClick={() => handleTabChange('Devices list')}>
