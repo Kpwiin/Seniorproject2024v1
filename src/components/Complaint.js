@@ -45,10 +45,10 @@ function Complaint() {
     setError(null);
   
     try {
-      let complaintsQuery = collection(db, 'complaints'); // Base collection reference
+      let complaintsQuery = collection(db, 'complaints');
   
       if (filterLocation) {
-        console.log("Filtering by location:", filterLocation); // Debugging log
+        console.log("Filtering by location:", filterLocation); 
         complaintsQuery = query(complaintsQuery, where('location', '==', filterLocation));
       }
   
@@ -58,7 +58,7 @@ function Complaint() {
         isLoadMore && lastDoc ? startAfter(lastDoc) : limit(complaintsPerPage)
       );
   
-      console.log("Fetching complaints with query:", complaintsQuery); // Debugging log
+      console.log("Fetching complaints with query:", complaintsQuery); 
   
       const querySnapshot = await getDocs(complaintsQuery);
   
@@ -219,7 +219,7 @@ function Complaint() {
   
   const handleAddComment = async (complaintId) => {
     if (newComment.trim()) {
-      const confirmed = window.confirm('Are you sure you want to add this comment?'); // Confirmation alert
+      const confirmed = window.confirm('Are you sure you want to add this comment?'); 
       if (confirmed) {
         try {
           if (!username) {

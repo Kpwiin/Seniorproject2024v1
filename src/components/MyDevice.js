@@ -7,6 +7,8 @@ import { FiSettings } from 'react-icons/fi';
 import AddDevice from './AddDevice';
 import { Tooltip } from 'react-tooltip';
 import { auth } from "../firebase";
+import { onAuthStateChanged } from 'firebase/auth';
+
 const Container = styled.div`
   padding: 20px;
   width: 100%;
@@ -223,38 +225,40 @@ function MyDevice() {
   const [isFetching, setIsFetching] = useState(false); 
 
   useEffect(() => {
-    fetchDevices();
-  }, []);
-
-  const fetchDevices = async () => {
-    setLoading(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        console.error("No user is signed in.");
-        setDevices([]); 
-        return;
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchDevices(user);
+      } else {
+        setDevices([]);
+        setLoading(false);
       }
-  
-      const userName = user.displayName || user.uid; 
-  
-      const q = query(
-        collection(db, 'devices'),
-        where('addby', '==', userName)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const deviceList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setDevices(deviceList);
-    } catch (error) {
-      console.error('Error fetching devices:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
+
+    return () => unsubscribe(); 
+}, []);
+
+const fetchDevices = async (user) => {
+  setLoading(true);
+  try {
+    const userName = user.displayName || user.uid;
+
+    const q = query(
+      collection(db, 'devices'),
+      where('addby', '==', userName)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const deviceList = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setDevices(deviceList);
+  } catch (error) {
+    console.error('Error fetching devices:', error);
+  } finally {
+    setLoading(false);
+  }
+};
   
   
   const handleSettingsClick = (e, deviceId) => {
