@@ -1,10 +1,10 @@
 // src/components/Navbar.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { styled } from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs} from 'firebase/firestore';
 import { useAuth } from "./AuthContext";
 
 import { 
@@ -248,6 +248,28 @@ const NotificationBadge = styled.div`
     }
   }
 `;
+const NotificationModal = styled.div`
+  position: absolute;
+  top: 70px;
+  right: 30px;
+  background-color: #1a1a1a;
+  padding: 15px;
+  border-radius: 8px;
+  width: 300px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+`;
+
+const ModalTitle = styled.h3`
+  color: white;
+  margin-bottom: 10px;
+`;
+
+const DeviceNotification = styled.div`
+  color: white;
+  padding: 8px 0;
+  border-bottom: 1px solid #333;
+`;
 
 function Navbar() {
   const location = useLocation();
@@ -258,20 +280,28 @@ function Navbar() {
   const [hasNotifications, setHasNotifications] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { role } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const bellRef = useRef(null);
+  const [modalPosition, setModalPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        
+  
         try {
           const userDoc = await getDoc(doc(db, 'UserInfo', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserProfile({
               ...userData,
-              username: userData.username || currentUser.email.split('@')[0]
+              username: userData.username || currentUser.email.split('@')[0],
             });
+  
+            // 👇 Check and update notification state
+            const shouldNotify = userData.noiseEnabled && checkIfRecentAlert(userData.threshold);
+            setHasNotifications(shouldNotify);
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
@@ -285,6 +315,80 @@ function Navbar() {
   
     return () => unsubscribe();
   }, [navigate]);
+  
+  const checkIfRecentAlert = (threshold) => {
+    // TODO: Replace this with real alert-checking logic from Firestore
+    const lastNoiseLevel = 85; // Example simulated last value
+    const recentTimestamp = Date.now() - 5 * 60 * 1000; // 5 minutes ago
+  
+    return lastNoiseLevel >= threshold && Date.now() - recentTimestamp < 10 * 60 * 1000;
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+  
+      // Get user settings from 'UserInfo' collection
+      const userDoc = await getDoc(doc(db, 'UserInfo', user.uid));
+      if (!userDoc.exists()) return;
+  
+      const { threshold, noiseEnabled } = userDoc.data();
+      if (!noiseEnabled) return; // Exit if notifications are disabled
+  
+      // Fetch devices and sound levels
+      const devicesSnapshot = await getDocs(collection(db, 'devices'));
+      const soundsSnapshot = await getDocs(collection(db, 'sounds'));
+  
+      const devicesData = devicesSnapshot.docs.map(doc => doc.data());
+      const soundsData = soundsSnapshot.docs.map(doc => doc.data());
+  
+      // Match devices with their sound levels and filter by threshold
+      const notificationsData = devicesData
+        .map(device => {
+          // Filter related sounds based on deviceId
+          const relatedSounds = soundsData
+            .filter(s => String(s.deviceId) === String(device.deviceId))
+            .sort((a, b) => {
+              // Sort based on document ID to get the most recent one
+              const aDocID = a.id || ''; // Access document ID
+              const bDocID = b.id || ''; // Access document ID
+              return bDocID.localeCompare(aDocID); // Sort by document ID in descending order
+            });
+  
+          const latestSound = relatedSounds[0]; // Get the latest sound based on document ID
+  
+          // If there's no sound or the sound level is below the threshold, ignore it
+          if (!latestSound || latestSound.level < threshold) return null;
+  
+          // Check if this sound level is recent and above the threshold
+          if (!checkIfRecentAlert(latestSound.level, threshold)) return null;
+  
+          return {
+            deviceName: device.deviceName,
+            level: latestSound.level,
+          };
+        })
+        .filter(n => n !== null); // Remove null values
+  
+      // Set notifications
+      setNotifications(notificationsData);
+  
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+  
+  
+  const handleBellClick = () => {
+    if (bellRef.current) {
+      const rect = bellRef.current.getBoundingClientRect();
+      setModalPosition({ top: rect.bottom + 20, left: rect.left - 150});
+    }
+    fetchNotifications();
+    setShowNotifications(!showNotifications);
+  };
+  
   
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -361,58 +465,74 @@ function Navbar() {
         )}
 
           <MenuItem 
-            href="/mydevice" 
-            active={currentPath === '/mydevice'}
-            onClick={handleMenuClick('/mydevice')}
+            href="/mydevices" 
+            active={currentPath === '/mydevices'}
+            onClick={handleMenuClick('/mydevices')}
           >
             <FaServer />
-            <span>My Device</span>
+            <span>My Devices</span>
           </MenuItem>
       </Sidebar>
 
       <TopBar isSidebarOpen={isSidebarOpen}>
-        <ToggleButton onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-          <FaBars />
-        </ToggleButton>
-        
-        <UserSection>
-          {hasNotifications ? (
-            <NotificationBadge>
-              <IconButton title="Notifications">
-                <FaBell />
-              </IconButton>
-            </NotificationBadge>
-          ) : (
-            <IconButton title="Notifications">
-              <FaBell />
-            </IconButton>
-          )}
-          
-          <IconButton title="Settings">
-            <FaCog />
-          </IconButton>
-          
-          <UserInfo>
-            <UserProfile>
-              <div>
-                <div className="username">
-                  {userProfile?.username || user?.email.split('@')[0] || 'User'}
-                </div>
-                <div className="role">
-                  {userProfile?.role === 'admin' ? 'Administrator' : 'User'}
-                </div>
-              </div>
-              <UserAvatar>
-                {getInitials(userProfile?.username || user?.email.split('@')[0])}
-              </UserAvatar>
-            </UserProfile>
-          </UserInfo>
-          
-          <IconButton onClick={handleSignOut} title="Sign Out">
-            <FaSignOutAlt />
-          </IconButton>
-        </UserSection>
-      </TopBar>
+  <ToggleButton onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+    <FaBars />
+  </ToggleButton>
+
+  <UserSection>
+    {hasNotifications ? (
+      <NotificationBadge>
+        <IconButton ref={bellRef} title="Notifications" onClick={handleBellClick}>
+          <FaBell />
+        </IconButton>
+      </NotificationBadge>
+    ) : (
+      <IconButton ref={bellRef} title="Notifications" onClick={handleBellClick}>
+        <FaBell />
+      </IconButton>
+    )}
+
+    {showNotifications && (
+      <NotificationModal style={{ position: 'absolute', top: modalPosition.top, left: modalPosition.left }}>
+        <ModalTitle>Device Alerts</ModalTitle>
+        {notifications.length > 0 ? (
+          notifications.map((notif, index) => (
+            <DeviceNotification key={index}>
+              <strong>{notif.deviceName}</strong>: Level {notif.level}
+            </DeviceNotification>
+          ))
+        ) : (
+          <p>No notifications</p>
+        )}
+      </NotificationModal>
+    )}
+
+    <IconButton title="Settings">
+      <FaCog />
+    </IconButton>
+
+    <UserInfo>
+      <UserProfile>
+        <div>
+          <div className="username">
+            {userProfile?.username || user?.email.split('@')[0] || 'User'}
+          </div>
+          <div className="role">
+            {userProfile?.role === 'admin' ? 'Administrator' : 'User'}
+          </div>
+        </div>
+        <UserAvatar>
+          {getInitials(userProfile?.username || user?.email.split('@')[0])}
+        </UserAvatar>
+      </UserProfile>
+    </UserInfo>
+
+    <IconButton onClick={handleSignOut} title="Sign Out">
+      <FaSignOutAlt />
+    </IconButton>
+  </UserSection>
+</TopBar>
+
     </NavbarContainer>
   );
 }

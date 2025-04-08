@@ -124,6 +124,7 @@ const NoDevicesMessage = styled.div`
   text-align: center;
   padding: 20px;
   font-style: italic;
+  margin-bottom: 30rem;
 `;
 
 const ContentContainer = styled.div`

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { FiUser, FiBell, FiLogOut, FiCamera, FiChevronRight, FiMail, FiLock, FiVolume2 } from 'react-icons/fi';
+import { FiUser, FiBell, FiLogOut, FiCamera, FiChevronRight, FiMail, FiLock } from 'react-icons/fi';
 import { useEffect } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
@@ -279,52 +279,6 @@ const DeleteLink = styled.a`
   }
 `;
 
-const NotificationContainer = styled.div`
-  width: 100%;
-  animation: fadeIn 0.3s ease-in-out;
-`;
-
-const Section = styled.div`
-  background: #1A1A1A;
-  border-radius: 16px;
-  padding: 32px;
-  margin-bottom: 24px;
-  border: 1px solid #2A2A2A;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-`;
-
-const SectionTitle = styled.div`
-  display: flex;
-  align-items: center;
-  color: #FFFFFF;
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 24px;
-
-  .icon {
-    margin-right: 12px;
-    font-size: 20px;
-  }
-`;
-
-const ToggleContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: #151515;
-  border-radius: 12px;
-  margin-bottom: 16px;
-`;
-
-const ToggleLabel = styled.div`
-  color: #A0A0A0;
-  font-size: 14px;
-`;
-
 const Toggle = styled.label`
   position: relative;
   display: inline-block;
@@ -370,36 +324,6 @@ const Toggle = styled.label`
   }
 `;
 
-const Description = styled.p`
-  color: #A0A0A0;
-  font-size: 14px;
-  line-height: 1.6;
-  margin-top: 8px;
-`;
-
-const ThresholdContainer = styled.div`
-  padding: 16px;
-`;
-
-const ThresholdValue = styled.div`
-  font-size: 32px;
-  font-weight: 600;
-  color: #FFFFFF;
-  margin-bottom: 24px;
-  text-align: center;
-
-  span {
-    font-size: 16px;
-    color: #A0A0A0;
-    margin-left: 8px;
-  }
-`;
-
-const SliderContainer = styled.div`
-  width: 100%;
-  padding: 0 12px;
-`;
-
 const Slider = styled.input`
   width: 100%;
   height: 4px;
@@ -427,14 +351,6 @@ const Slider = styled.input`
   }
 `;
 
-const SliderValues = styled.div`
-  display: flex;
-  justify-content: space-between;
-  color: #666666;
-  font-size: 12px;
-  margin-bottom: 24px;
-`;
-
 function Settings() {
   const [activeMenu, setActiveMenu] = useState('account');
   const [newsEnabled, setNewsEnabled] = useState(true);
@@ -447,21 +363,48 @@ function Settings() {
   useEffect(() => {
     const auth = getAuth();
     const db = getFirestore();
-
+  
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDocRef = doc(db, "UserInfo", user.uid);
         const userDoc = await getDoc(userDocRef);
-
+  
         if (userDoc.exists()) {
-          setUsername(userDoc.data().username || "");
-          setEmail(userDoc.data().email || "");
+          const data = userDoc.data();
+          setUsername(data.username || "");
+          setEmail(data.email || "");
+  
+          // Load notification settings
+          setNewsEnabled(data.newsEnabled ?? true);
+          setNoiseEnabled(data.noiseEnabled ?? true);
+          setThreshold(data.threshold ?? 80);
         }
       }
     });
-
-    return () => unsubscribe(); // Cleanup on unmount
+  
+    return () => unsubscribe();
   }, []);
+  
+  const handleSaveNotifications = async () => {
+    try {
+      const auth = getAuth();
+      const db = getFirestore();
+      const user = auth.currentUser;
+  
+      if (user) {
+        const userDocRef = doc(db, "UserInfo", user.uid);
+        await updateDoc(userDocRef, {
+          newsEnabled,
+          noiseEnabled,
+          threshold: Number(threshold),
+        });
+        alert("Notification settings saved!");
+      }
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      alert("Failed to save settings.");
+    }
+  };
   
   const handleSignOut = async () => {
     const confirmLogout = window.confirm("Are you sure you want to log out?");
@@ -615,13 +558,17 @@ function Settings() {
           </div>
     
           {/* Save Button */}
-          <SaveButton style={{ 
-            background: '#4169E1',
-            color: '#FFFFFF',
-            fontSize: '16px'
-          }}>
-            Save change
-          </SaveButton>
+          <SaveButton 
+      onClick={handleSaveNotifications}
+      style={{ 
+        background: '#4169E1',
+        color: '#FFFFFF',
+        fontSize: '16px'
+      }}
+    >
+      Save change
+    </SaveButton>
+
         </FormContainer>
       );
     }
