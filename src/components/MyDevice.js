@@ -126,6 +126,7 @@ const NoDevicesMessage = styled.div`
   text-align: center;
   padding: 20px;
   font-style: italic;
+  margin-bottom: 30rem;
 `;
 
 const ContentContainer = styled.div`
@@ -456,7 +457,7 @@ const filteredDevices = devices
   
   return (
     <Container>
-      <Title>My Device</Title>
+      <Title>My Devices</Title>
       
       <TabContainer>
         <Tab active={activeTab === 'Devices list'} onClick={() => handleTabChange('Devices list')}>

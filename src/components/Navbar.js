@@ -3,7 +3,7 @@ import { styled } from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, orderBy, limit} from 'firebase/firestore';
 import { useAuth } from "./AuthContext";
 
 import { 
@@ -254,6 +254,28 @@ const NotificationBadge = styled.div`
     }
   }
 `;
+const NotificationModal = styled.div`
+  position: absolute;
+  top: 70px;
+  right: 30px;
+  background-color: #1a1a1a;
+  padding: 15px;
+  border-radius: 8px;
+  width: 300px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+`;
+
+const ModalTitle = styled.h3`
+  color: white;
+  margin-bottom: 10px;
+`;
+
+const DeviceNotification = styled.div`
+  color: white;
+  padding: 8px 0;
+  border-bottom: 1px solid #333;
+`;
 
 function Navbar() {
   const location = useLocation();
@@ -264,24 +286,39 @@ function Navbar() {
   const [hasNotifications, setHasNotifications] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { role } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const bellRef = useRef(null);
+  const [modalPosition, setModalPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        
+  
         try {
           const userDoc = await getDoc(doc(db, 'UserInfo', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserProfile({
               ...userData,
-              username: userData.username || currentUser.email.split('@')[0]
+              username: userData.username || currentUser.email.split('@')[0],
             });
+  
+            // Check and update notification state
+            const shouldNotify = userData.noiseEnabled && checkIfRecentAlert(userData.threshold);
+            setHasNotifications(shouldNotify);
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
         }
+  
+        // Start fetching notifications
+        const notificationInterval = setInterval(() => {
+          fetchNotifications();
+        }, 6000); // Adjust the interval 1 min
+  
+        return () => clearInterval(notificationInterval); 
       } else {
         setUser(null);
         setUserProfile(null);
@@ -289,8 +326,119 @@ function Navbar() {
       }
     });
   
-    return () => unsubscribe();
+    return () => unsubscribe(); 
   }, [navigate]);
+  
+  const checkIfRecentAlert = (sound, threshold) => {
+    if (!sound || typeof sound.level !== 'number') return false;
+    let soundTime = sound.timestamp ? sound.timestamp.toMillis() : Date.now();
+  
+    if (!sound.timestamp) {
+      console.log("Warning: Missing timestamp, using current time.");
+    }
+    const now = Date.now();
+    const isAboveThreshold = sound.level >= threshold;
+    const isRecent = now - soundTime < 60 * 60 * 1000; // Check if within last 60 minutes
+  
+    console.log("Checking alert:");
+    console.log("Timestamp (ms):", soundTime);
+    console.log("Now:", now);
+    console.log("Minutes ago:", (now - soundTime) / 60000);
+    console.log("Is above threshold:", isAboveThreshold);
+    console.log("Is recent:", isRecent);
+  
+    return isAboveThreshold && isRecent;
+  };
+  
+  const fetchNotifications = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+  
+      // Get user settings
+      const userDoc = await getDoc(doc(db, 'UserInfo', user.uid));
+      if (!userDoc.exists()) return;
+  
+      const { threshold, noiseEnabled } = userDoc.data();
+      if (!noiseEnabled) return;
+  
+      console.log("Threshold:", threshold, "Noise Enabled:", noiseEnabled);
+  
+      // Fetch devices
+      const devicesSnapshot = await getDocs(collection(db, 'devices'));
+      const devicesData = devicesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      console.log("Devices fetched:", devicesData);
+  
+      // Fetch most recent sound for each device
+      const notificationsData = await Promise.all(
+        devicesData.map(async (device) => {
+          console.log("Checking device:", device.deviceName, "ID:", device.deviceId);
+  
+          // Fetch the most recent sound for the device
+          const soundQuery = query(
+            collection(db, 'sounds'),
+            where('deviceId', '==', device.deviceId),
+            orderBy('date._seconds', 'desc'), 
+            limit(1) 
+          );
+  
+          const soundSnapshot = await getDocs(soundQuery);
+          const latestSound = soundSnapshot.empty ? null : soundSnapshot.docs[0].data();
+  
+          console.log("Latest sound for device:", latestSound);
+  
+          if (!latestSound || typeof latestSound.level !== 'number') {
+            console.log("No valid sound data for this device.");
+            return null;
+          }
+  
+          if (latestSound.level < threshold) {
+            console.log("Sound below threshold.");
+            return null;
+          }
+  
+          if (!checkIfRecentAlert(latestSound, threshold)) {
+            console.log("Sound not recent enough.");
+            return null;
+          }
+  
+          return {
+            deviceName: device.deviceName || device.id,
+            level: latestSound.level,
+          };
+        })
+      );
+  
+      // Filter out any null values from the notificationsData
+      const validNotifications = notificationsData.filter(n => n !== null);
+  
+      // Update state with valid notifications
+      console.log("Final Notifications:", validNotifications);
+      setNotifications(validNotifications);
+      setHasNotifications(validNotifications.length > 0); // Update hasNotifications based on result
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  };
+  
+  const handleBellClick = () => {
+    if (bellRef.current) {
+      const rect = bellRef.current.getBoundingClientRect();
+      setModalPosition({ top: rect.bottom + 20, left: rect.left - 150 });
+    }
+    if (notifications.length > 0) {
+      setHasNotifications(false); // Reset notification badge once viewed
+    }
+    setShowNotifications(!showNotifications);
+  };
+  
+  
+  
+  
   
   const getInitials = (name) => {
     if (!name) return 'U';

@@ -334,52 +334,6 @@ const DeleteLink = styled.a`
   }
 `;
 
-const NotificationContainer = styled.div`
-  width: 100%;
-  animation: fadeIn 0.3s ease-in-out;
-`;
-
-const Section = styled.div`
-  background: #1A1A1A;
-  border-radius: 16px;
-  padding: 32px;
-  margin-bottom: 24px;
-  border: 1px solid #2A2A2A;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-`;
-
-const SectionTitle = styled.div`
-  display: flex;
-  align-items: center;
-  color: #FFFFFF;
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 24px;
-
-  .icon {
-    margin-right: 12px;
-    font-size: 20px;
-  }
-`;
-
-const ToggleContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: #151515;
-  border-radius: 12px;
-  margin-bottom: 16px;
-`;
-
-const ToggleLabel = styled.div`
-  color: #A0A0A0;
-  font-size: 14px;
-`;
-
 const Toggle = styled.label`
   position: relative;
   display: inline-block;
@@ -423,36 +377,6 @@ const Toggle = styled.label`
   input:checked + span:before {
     transform: translateX(24px);
   }
-`;
-
-const Description = styled.p`
-  color: #A0A0A0;
-  font-size: 14px;
-  line-height: 1.6;
-  margin-top: 8px;
-`;
-
-const ThresholdContainer = styled.div`
-  padding: 16px;
-`;
-
-const ThresholdValue = styled.div`
-  font-size: 32px;
-  font-weight: 600;
-  color: #FFFFFF;
-  margin-bottom: 24px;
-  text-align: center;
-
-  span {
-    font-size: 16px;
-    color: #A0A0A0;
-    margin-left: 8px;
-  }
-`;
-
-const SliderContainer = styled.div`
-  width: 100%;
-  padding: 0 12px;
 `;
 
 const Slider = styled.input`
@@ -547,7 +471,7 @@ function Settings() {
       if (user) {
         const userDocRef = doc(db, "UserInfo", user.uid);
         const userDoc = await getDoc(userDocRef);
-
+  
         if (userDoc.exists()) {
           setUsername(userDoc.data().username || "");
           setEmail(user.email || "");
@@ -560,8 +484,8 @@ function Settings() {
         }
       }
     });
-
-    return () => unsubscribe(); // Cleanup on unmount
+  
+    return () => unsubscribe();
   }, []);
 
   const handleFileUpload = async (e) => {

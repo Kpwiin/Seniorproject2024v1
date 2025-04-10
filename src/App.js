@@ -12,7 +12,6 @@ import Login from './components/Login';
 import Register from './components/Register';
 import DeviceDetail from './components/DeviceDetail';
 import EditDevice from './components/EditDevice';
-import DeComplaint from './components/DeComplaint';
 import {AuthProvider} from './components/AuthContext';
 import AdminRoute from './components/AdminRoute';
 import MyDevice from './components/MyDevice';
@@ -45,7 +44,7 @@ function App() {
             <Route path="/device/:deviceId/:deviceName" element={<Layout><DeviceDetail /></Layout>} />
             <Route path="/device/:id/edit" element={<Layout><EditDevice /></Layout>} />
             <Route path="/complaints/:deviceName" element={<Layout><Complaint /></Layout>} />
-            <Route path="/mydevice" element={<Layout><MyDevice /></Layout>} />
+            <Route path="/mydevices" element={<Layout><MyDevice /></Layout>} />
             {/* หน้าที่ต้องเป็น Admin เท่านั้น */}
             <Route path="/managedevices" element={<AdminRoute><Layout><DeviceManagement /></Layout></AdminRoute>} />
           </Routes>
