@@ -387,6 +387,9 @@ function Settings() {
   
   const handleSaveNotifications = async () => {
     try {
+      const confirmSave = window.confirm("Are you sure you want to save these notification settings?");
+      if (!confirmSave) return; 
+  
       const auth = getAuth();
       const db = getFirestore();
       const user = auth.currentUser;
@@ -404,7 +407,7 @@ function Settings() {
       console.error("Failed to save settings:", error);
       alert("Failed to save settings.");
     }
-  };
+  };  
   
   const handleSignOut = async () => {
     const confirmLogout = window.confirm("Are you sure you want to log out?");

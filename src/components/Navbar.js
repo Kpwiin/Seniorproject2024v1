@@ -4,7 +4,7 @@ import { styled } from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs} from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, where, orderBy, limit} from 'firebase/firestore';
 import { useAuth } from "./AuthContext";
 
 import { 
@@ -299,13 +299,20 @@ function Navbar() {
               username: userData.username || currentUser.email.split('@')[0],
             });
   
-            // 👇 Check and update notification state
+            // Check and update notification state
             const shouldNotify = userData.noiseEnabled && checkIfRecentAlert(userData.threshold);
             setHasNotifications(shouldNotify);
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
         }
+  
+        // Start fetching notifications
+        const notificationInterval = setInterval(() => {
+          fetchNotifications();
+        }, 6000); // Adjust the interval 1 min
+  
+        return () => clearInterval(notificationInterval); 
       } else {
         setUser(null);
         setUserProfile(null);
@@ -313,81 +320,118 @@ function Navbar() {
       }
     });
   
-    return () => unsubscribe();
+    return () => unsubscribe(); 
   }, [navigate]);
   
-  const checkIfRecentAlert = (threshold) => {
-    // TODO: Replace this with real alert-checking logic from Firestore
-    const lastNoiseLevel = 85; // Example simulated last value
-    const recentTimestamp = Date.now() - 5 * 60 * 1000; // 5 minutes ago
+  const checkIfRecentAlert = (sound, threshold) => {
+    if (!sound || typeof sound.level !== 'number') return false;
+    let soundTime = sound.timestamp ? sound.timestamp.toMillis() : Date.now();
   
-    return lastNoiseLevel >= threshold && Date.now() - recentTimestamp < 10 * 60 * 1000;
+    if (!sound.timestamp) {
+      console.log("Warning: Missing timestamp, using current time.");
+    }
+    const now = Date.now();
+    const isAboveThreshold = sound.level >= threshold;
+    const isRecent = now - soundTime < 60 * 60 * 1000; // Check if within last 60 minutes
+  
+    console.log("Checking alert:");
+    console.log("Timestamp (ms):", soundTime);
+    console.log("Now:", now);
+    console.log("Minutes ago:", (now - soundTime) / 60000);
+    console.log("Is above threshold:", isAboveThreshold);
+    console.log("Is recent:", isRecent);
+  
+    return isAboveThreshold && isRecent;
   };
-
+  
   const fetchNotifications = async () => {
     try {
       const user = auth.currentUser;
       if (!user) return;
   
-      // Get user settings from 'UserInfo' collection
+      // Get user settings
       const userDoc = await getDoc(doc(db, 'UserInfo', user.uid));
       if (!userDoc.exists()) return;
   
       const { threshold, noiseEnabled } = userDoc.data();
-      if (!noiseEnabled) return; // Exit if notifications are disabled
+      if (!noiseEnabled) return;
   
-      // Fetch devices and sound levels
+      console.log("Threshold:", threshold, "Noise Enabled:", noiseEnabled);
+  
+      // Fetch devices
       const devicesSnapshot = await getDocs(collection(db, 'devices'));
-      const soundsSnapshot = await getDocs(collection(db, 'sounds'));
+      const devicesData = devicesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
   
-      const devicesData = devicesSnapshot.docs.map(doc => doc.data());
-      const soundsData = soundsSnapshot.docs.map(doc => doc.data());
+      console.log("Devices fetched:", devicesData);
   
-      // Match devices with their sound levels and filter by threshold
-      const notificationsData = devicesData
-        .map(device => {
-          // Filter related sounds based on deviceId
-          const relatedSounds = soundsData
-            .filter(s => String(s.deviceId) === String(device.deviceId))
-            .sort((a, b) => {
-              // Sort based on document ID to get the most recent one
-              const aDocID = a.id || ''; // Access document ID
-              const bDocID = b.id || ''; // Access document ID
-              return bDocID.localeCompare(aDocID); // Sort by document ID in descending order
-            });
+      // Fetch most recent sound for each device
+      const notificationsData = await Promise.all(
+        devicesData.map(async (device) => {
+          console.log("Checking device:", device.deviceName, "ID:", device.deviceId);
   
-          const latestSound = relatedSounds[0]; // Get the latest sound based on document ID
+          // Fetch the most recent sound for the device
+          const soundQuery = query(
+            collection(db, 'sounds'),
+            where('deviceId', '==', device.deviceId),
+            orderBy('date._seconds', 'desc'), 
+            limit(1) 
+          );
   
-          // If there's no sound or the sound level is below the threshold, ignore it
-          if (!latestSound || latestSound.level < threshold) return null;
+          const soundSnapshot = await getDocs(soundQuery);
+          const latestSound = soundSnapshot.empty ? null : soundSnapshot.docs[0].data();
   
-          // Check if this sound level is recent and above the threshold
-          if (!checkIfRecentAlert(latestSound.level, threshold)) return null;
+          console.log("Latest sound for device:", latestSound);
+  
+          if (!latestSound || typeof latestSound.level !== 'number') {
+            console.log("No valid sound data for this device.");
+            return null;
+          }
+  
+          if (latestSound.level < threshold) {
+            console.log("Sound below threshold.");
+            return null;
+          }
+  
+          if (!checkIfRecentAlert(latestSound, threshold)) {
+            console.log("Sound not recent enough.");
+            return null;
+          }
   
           return {
-            deviceName: device.deviceName,
+            deviceName: device.deviceName || device.id,
             level: latestSound.level,
           };
         })
-        .filter(n => n !== null); // Remove null values
+      );
   
-      // Set notifications
-      setNotifications(notificationsData);
+      // Filter out any null values from the notificationsData
+      const validNotifications = notificationsData.filter(n => n !== null);
   
+      // Update state with valid notifications
+      console.log("Final Notifications:", validNotifications);
+      setNotifications(validNotifications);
+      setHasNotifications(validNotifications.length > 0); // Update hasNotifications based on result
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error("Error fetching notifications:", error);
     }
   };
-  
   
   const handleBellClick = () => {
     if (bellRef.current) {
       const rect = bellRef.current.getBoundingClientRect();
-      setModalPosition({ top: rect.bottom + 20, left: rect.left - 150});
+      setModalPosition({ top: rect.bottom + 20, left: rect.left - 150 });
     }
-    fetchNotifications();
+    if (notifications.length > 0) {
+      setHasNotifications(false); // Reset notification badge once viewed
+    }
     setShowNotifications(!showNotifications);
   };
+  
+  
+  
   
   
   const getInitials = (name) => {
@@ -494,7 +538,7 @@ function Navbar() {
 
     {showNotifications && (
       <NotificationModal style={{ position: 'absolute', top: modalPosition.top, left: modalPosition.left }}>
-        <ModalTitle>Device Alerts</ModalTitle>
+        <ModalTitle>Loud noise alerts</ModalTitle>
         {notifications.length > 0 ? (
           notifications.map((notif, index) => (
             <DeviceNotification key={index}>
