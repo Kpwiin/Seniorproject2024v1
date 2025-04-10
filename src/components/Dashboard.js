@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import Map from './Map';
 
 const DashboardContainer = styled.div`
@@ -92,6 +92,12 @@ const SearchInput = styled.input`
 
 const DeviceCard = styled.div`
   background: ${props => {
+    // ถ้าสถานะเป็น inactive ให้แสดงสีเทา
+    if (props.status?.toLowerCase() === 'inactive') {
+      return 'linear-gradient(135deg, rgba(108, 117, 125, 0.95) 0%, rgba(73, 80, 87, 0.95) 100%)';
+    }
+    
+    // ถ้าไม่ใช่ inactive ให้แสดงสีตามระดับเสียงเหมือนเดิม
     const level = Number(props.soundLevel);
     if (level >= 85) return 'linear-gradient(135deg, rgba(220, 53, 69, 0.95) 0%, rgba(187, 45, 59, 0.95) 100%)';
     if (level >= 70) return 'linear-gradient(135deg, rgba(255, 193, 7, 0.95) 0%, rgba(224, 168, 0, 0.95) 100%)';
@@ -104,10 +110,12 @@ const DeviceCard = styled.div`
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: ${props => props.status?.toLowerCase() === 'inactive' ? 0.7 : 1};
 
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    opacity: ${props => props.status?.toLowerCase() === 'inactive' ? 0.9 : 1};
   }
 `;
 
@@ -153,6 +161,17 @@ const DeviceInfo = styled.div`
   .value {
     color: white;
     font-weight: 500;
+  }
+  
+  .inactive-status {
+    font-size: 14px;
+    font-weight: 500;
+    color: #dc3545;
+    text-align: center;
+    margin-top: 6px;
+    padding: 4px;
+    border-radius: 4px;
+    background: rgba(220, 53, 69, 0.1);
   }
 `;
 
@@ -222,42 +241,124 @@ function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log("Fetching devices data...");
+        // ดึงข้อมูลอุปกรณ์ทั้งหมดจาก collection 'devices'
         const devicesSnapshot = await getDocs(collection(db, 'devices'));
         const devicesList = devicesSnapshot.docs.map(doc => ({
-          deviceId: doc.data().deviceId, 
+          id: doc.id,
+          deviceId: doc.data().deviceId || doc.id, 
           ...doc.data()
         }));
-  
-        const soundsQuery = query(
-          collection(db, 'sounds'),
-          orderBy('date._seconds', 'desc'),
-          limit(1)
+        
+        console.log("Devices from Firestore:", devicesList);
+
+        // ถ้าไม่มีข้อมูลใน Firestore ให้ใช้ข้อมูลตัวอย่าง
+        if (devicesList.length === 0) {
+          console.log("No devices found in Firestore, using sample data");
+          const sampleDevices = getSampleDevices();
+          setDevices(sampleDevices);
+          return;
+        }
+
+        // ดึงข้อมูลเสียงล่าสุดของแต่ละอุปกรณ์
+        const devicesWithSounds = await Promise.all(
+          devicesList.map(async (device) => {
+            try {
+              // ใช้วิธีดึงข้อมูลแบบง่ายๆ ไม่ต้องใช้ where และ orderBy พร้อมกัน
+              const soundsRef = collection(db, 'sounds');
+              const q = query(soundsRef, where('deviceId', '==', device.deviceId));
+              const soundSnapshot = await getDocs(q);
+              
+              // หาข้อมูลล่าสุดด้วยการเรียงลำดับหลังจากดึงข้อมูลมาแล้ว
+              let latestSound = null;
+              let latestTimestamp = 0;
+              
+              soundSnapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.timestamp && data.timestamp.seconds > latestTimestamp) {
+                  latestSound = data;
+                  latestTimestamp = data.timestamp.seconds;
+                }
+              });
+              
+              console.log(`Latest sound for device ${device.deviceId}:`, latestSound);
+              
+              // ตรวจสอบสถานะอุปกรณ์จากเวลาล่าสุดที่ส่งข้อมูล
+              const isActive = latestSound && 
+                (Date.now()/1000 - latestTimestamp < 3600);
+              
+              return {
+                ...device,
+                // ถ้า inactive ไม่ต้องแสดงค่าใดๆ
+                soundLevel: isActive ? (latestSound?.soundLevel || 0) : 0,
+                source: isActive ? (latestSound?.source || 'Unknown') : '',
+                status: isActive ? 'Active' : 'Inactive'
+              };
+            } catch (err) {
+              console.error(`Error fetching sound data for device ${device.deviceId}:`, err);
+              return {
+                ...device,
+                soundLevel: 0,
+                source: 'Unknown',
+                status: 'Inactive'
+              };
+            }
+          })
         );
-        const soundsSnapshot = await getDocs(soundsQuery);
-        const latestSound = soundsSnapshot.docs[0]?.data();
-  
-        const devicesWithSounds = devicesList.map(device => {
-          const randomSoundLevel = Math.floor(Math.random() * (90 - 50 + 1)) + 50;
-          
-          return {
-            ...device,
-            soundLevel: randomSoundLevel,
-            source: latestSound?.result || 'Unknown'
-          };
-        });
-  
+
         console.log('Devices with sounds:', devicesWithSounds);
         setDevices(devicesWithSounds);
-  
+
       } catch (err) {
         console.error('Error fetching data:', err);
+        // ใช้ข้อมูลตัวอย่างในกรณีที่มีข้อผิดพลาด
+        const sampleDevices = getSampleDevices();
+        setDevices(sampleDevices);
       }
     };
-  
+
     fetchData();
+    // อัพเดทข้อมูลทุก 5 นาที
     const interval = setInterval(fetchData, 300000);
     return () => clearInterval(interval);
   }, []);
+
+  // ฟังก์ชันสร้างข้อมูลตัวอย่าง
+  const getSampleDevices = () => {
+    return [
+      {
+        deviceId: "device1",
+        deviceName: "Sample Device 1",
+        latitude: 13.794185,
+        longitude: 100.325802,
+        location: "Sample Location 1",
+        soundLevel: 65,
+        status: "Active",
+        source: "Traffic",
+        noiseThreshold: 80
+      },
+      {
+        deviceId: "device2",
+        deviceName: "Sample Device 2",
+        latitude: 13.795185,
+        longitude: 100.326802,
+        location: "Sample Location 2",
+        soundLevel: 75,
+        status: "Active",
+        source: "Construction",
+        noiseThreshold: 80
+      },
+      {
+        deviceId: "device3",
+        deviceName: "Sample Device 3",
+        latitude: 13.793185,
+        longitude: 100.324802,
+        location: "Sample Location 3",
+        status: "Inactive",
+        noiseThreshold: 80
+      }
+    ];
+  };
 
   const handleMouseMove = (e) => {
     setMousePos({ x: e.clientX + 10, y: e.clientY + 10 });
@@ -272,10 +373,11 @@ function Dashboard() {
     }
   };
   
-
   const filteredDevices = devices.filter(device => 
     device.deviceName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  console.log("Filtered devices:", filteredDevices);
 
   return (
     <DashboardContainer>
@@ -296,6 +398,7 @@ function Dashboard() {
               <DeviceCard
                 key={device.deviceId}
                 soundLevel={device.soundLevel}
+                status={device.status}
                 onMouseMove={handleMouseMove}
                 onMouseEnter={() => setSelectedDevice(device)}
                 onMouseLeave={() => setSelectedDevice(null)}
@@ -308,27 +411,32 @@ function Dashboard() {
                   <div className="location">
                     {device.location || 'No location'}
                   </div>
-                  <div className="info-grid">
-                    <div className="info-item">
-                      <span className="label">Sound Level</span>
-                      <span className="value">{device.soundLevel || 0} dB</span>
+                  
+                  {device.status?.toLowerCase() === 'inactive' ? (
+                    <div className="inactive-status">INACTIVE</div>
+                  ) : (
+                    <div className="info-grid">
+                      <div className="info-item">
+                        <span className="label">Sound Level</span>
+                        <span className="value">{device.soundLevel} dB</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="label">Status</span>
+                        <span className="value">{device.status}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="label">Source</span>
+                        <span className="value">{device.source}</span>
+                      </div>
                     </div>
-                    <div className="info-item">
-                      <span className="label">Status</span>
-                      <span className="value">{device.status || 'Unknown'}</span>
-                    </div>
-                    <div className="info-item">
-                      <span className="label">Source</span>
-                      <span className="value">{device.source || 'Unknown'}</span>
-                    </div>
-                  </div>
+                  )}
                 </DeviceInfo>
               </DeviceCard>
             ))}
           </DevicesOverlay>
 
           <InfoPopup
-            show={selectedDevice !== null}
+            show={selectedDevice !== null ? true : false}
             x={mousePos.x}
             y={mousePos.y}
             status={selectedDevice?.status}
@@ -343,21 +451,25 @@ function Dashboard() {
                   <strong>Device Name:</strong> 
                   <span>{selectedDevice.deviceName}</span>
                 </div>
-                <div>
-                  <strong>Sound Level:</strong> 
-                  <span>{selectedDevice.soundLevel} dB</span>
-                </div>
-                <div>
-                  <strong>Noise Threshold:</strong> 
-                  <span>{selectedDevice.noiseThreshold} dB</span>
-                </div>
+                {selectedDevice.status?.toLowerCase() !== 'inactive' && (
+                  <>
+                    <div>
+                      <strong>Sound Level:</strong> 
+                      <span>{selectedDevice.soundLevel} dB</span>
+                    </div>
+                    <div>
+                      <strong>Noise Threshold:</strong> 
+                      <span>{selectedDevice.noiseThreshold} dB</span>
+                    </div>
+                    <div>
+                      <strong>Sound Source:</strong> 
+                      <span>{selectedDevice.source}</span>
+                    </div>
+                  </>
+                )}
                 <div>
                   <strong>Status:</strong> 
                   <span className="status">{selectedDevice.status}</span>
-                </div>
-                <div>
-                  <strong>Sound Source:</strong> 
-                  <span>{selectedDevice.source}</span>
                 </div>
                 <div>
                   <strong>Location:</strong> 

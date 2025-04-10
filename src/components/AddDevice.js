@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../firebase';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
+import mqtt from 'mqtt';
+import { getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
 
 const Container = styled.div`
   background-color: #121212;
@@ -155,7 +158,43 @@ const MapContainer = styled.div`
   border: 1px solid #333;
 `;
 
+const SmallText = styled.small`
+  color: #808080;
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+`;
 
+const NotificationBox = styled.div`
+  background-color: #2D2D2D;
+  color: #FFFFFF;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  border-left: 4px solid #4CAF50;
+  text-align: center;
+`;
+
+const SuccessNotification = styled.div`
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #4CAF50;
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  text-align: center;
+  max-width: 80%;
+  animation: fadeIn 0.3s ease-out;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, -20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+`;
 
 function AddDevice() {
   const navigate = useNavigate();
@@ -173,6 +212,41 @@ function AddDevice() {
   const [searchQuery, setSearchQuery] = useState('');
   const [mapInstance, setMapInstance] = useState(null);
   const [locationInfo, setLocationInfo] = useState(null);
+  const [user, setUser] = useState(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [deviceDetails, setDeviceDetails] = useState(null);
+
+  // ตรวจสอบการล็อกอิน
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
+        navigate('/login', { state: { from: '/add-device' } });
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
+  // ฟังก์ชันสร้างที่เก็บไฟล์เสียง
+  const createAudioStorage = async (deviceId) => {
+    try {
+      const storage = getStorage();
+      
+      // สร้างไฟล์ placeholder เพื่อสร้างโฟลเดอร์
+      const emptyBlob = new Blob([''], { type: 'text/plain' });
+      const audioFolderRef = storageRef(storage, `audio/${deviceId}/.placeholder`);
+      
+      // อัปโหลดไฟล์ placeholder
+      await uploadBytes(audioFolderRef, emptyBlob);
+      console.log(`Created audio storage folder for device: ${deviceId}`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error creating audio storage:', error);
+      return false;
+    }
+  };
 
   const getAddressFromLatLng = async (lat, lng) => {
     try {
@@ -321,9 +395,56 @@ function AddDevice() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // ฟังก์ชันส่งข้อมูลไปยัง ESP32 ผ่าน MQTT
+  const sendDataToESP32 = async (deviceId, token) => {
+    try {
+      // เชื่อมต่อกับ MQTT broker
+      const client = mqtt.connect('mqtt://test.mosquitto.org:1883');
+      
+      return new Promise((resolve, reject) => {
+        client.on('connect', () => {
+          console.log('Connected to MQTT broker');
+          
+          // สร้าง topic สำหรับส่งข้อมูลไปยัง ESP32
+          const topic = `spl/registration/broadcast`;
+          
+          // สร้างข้อมูลที่จะส่ง
+          const message = JSON.stringify({
+            deviceId: deviceId,
+            token: token,
+            status: 'registered',
+            noiseThreshold: 85.0,
+            samplingPeriod: 1,
+            recordDuration: 10
+          });
+          
+          // ส่งข้อมูลไปยัง ESP32
+          client.publish(topic, message, () => {
+            console.log(`Registration data sent to ${topic}`);
+            client.end();
+            resolve(true);
+          });
+        });
+        
+        client.on('error', (err) => {
+          console.error('MQTT error:', err);
+          reject(err);
+        });
+      });
+    } catch (mqttError) {
+      console.error('Error connecting to MQTT:', mqttError);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    if (!user) {
+      alert('Please login to add device');
+      navigate('/login');
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -336,18 +457,76 @@ function AddDevice() {
       const newToken = `TKN-${Math.random().toString(36).substr(2, 16).toUpperCase()}`;
 
       const deviceData = {
-        ...formData,
+        deviceName: formData.deviceName,
+        location: formData.location,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
         deviceId: newDeviceId,
         token: newToken,
         locationInfo,
         createdAt: new Date(),
-        status: 'Inactive'
+        status: 'Inactive',
+        userId: user.uid,
+        // เพิ่มข้อมูลผู้เพิ่มอุปกรณ์
+        addby: user.displayName || user.email,
+        userEmail: user.email,
+        noiseThreshold: 85.0,
+        samplingPeriod: 1,
+        recordDuration: 10,
+        audioStorage: {
+          path: `audio/${newDeviceId}`,
+          created: new Date()
+        }
       };
 
-      const docRef = await addDoc(collection(db, 'devices'), deviceData);
-      alert('Device added successfully!');
-      // Navigate to device settings with the new path format
-      navigate(`/device/${docRef.id}/settings`);
+      // หา document ID ล่าสุด
+      const devicesRef = collection(db, 'devices');
+      const docsSnapshot = await getDocs(devicesRef);
+      
+      let maxId = 0;
+      docsSnapshot.forEach((doc) => {
+        // พยายามแปลง ID เป็นตัวเลข
+        const docId = parseInt(doc.id);
+        if (!isNaN(docId) && docId > maxId) {
+          maxId = docId;
+        }
+      });
+      
+      // สร้าง document ID ใหม่ (เริ่มจาก 1 ถ้าไม่มีเอกสารใดๆ)
+      let newDocId;
+      if (maxId < 0) {
+        // ถ้ายังไม่มีเอกสารใดๆ ให้เริ่มที่ 1
+        newDocId = "1";
+      } else {
+        // ถ้ามีเอกสารอยู่แล้ว ให้เพิ่มขึ้นอีก 1
+        newDocId = String(maxId + 1);
+      }
+      
+      // บันทึกลง Firestore ด้วย document ID ที่กำหนดเอง
+      await setDoc(doc(db, 'devices', newDocId), deviceData);
+      
+      // สร้างที่เก็บไฟล์เสียง
+      await createAudioStorage(newDeviceId);
+      
+      // ส่งข้อมูลไปยัง ESP32
+      await sendDataToESP32(newDeviceId, newToken);
+      
+      // เก็บข้อมูลอุปกรณ์เพื่อแสดงในการแจ้งเตือน
+      setDeviceDetails({
+        deviceId: newDeviceId,
+        token: newToken,
+        name: formData.deviceName
+      });
+      
+      // แสดงการแจ้งเตือนความสำเร็จ
+      setSuccessMessage(`Device "${formData.deviceName}" added successfully!`);
+      setShowSuccess(true);
+      
+      // ซ่อนการแจ้งเตือนหลังจาก 5 วินาที
+      setTimeout(() => {
+        setShowSuccess(false);
+        navigate(`/device/${newDocId}/settings`);
+      }, 5000);
     } catch (error) {
       console.error('Error adding device:', error);
       alert('Error adding device');
@@ -363,8 +542,23 @@ function AddDevice() {
           <div>Adding device...</div>
         </LoadingOverlay>
       )}
+      
+      {showSuccess && (
+        <SuccessNotification>
+          <h3 style={{ margin: '0 0 10px 0' }}>{successMessage}</h3>
+          {deviceDetails && (
+            <div>
+              <p style={{ margin: '5px 0' }}>Device ID: {deviceDetails.deviceId}</p>
+              <p style={{ margin: '5px 0' }}>Token: {deviceDetails.token}</p>
+              <p style={{ margin: '10px 0 0 0', fontSize: '0.9rem' }}>Your ESP32 should now display these details.</p>
+              <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem' }}>Redirecting to device settings...</p>
+            </div>
+          )}
+        </SuccessNotification>
+      )}
 
       <Title>Add Device</Title>
+      
       <FormContainer onSubmit={handleSubmit}>
         <FormGroup>
           <Label>Device Name</Label>
@@ -396,53 +590,62 @@ function AddDevice() {
           </LocationButton>
           {errors.location && <ErrorMessage>{errors.location}</ErrorMessage>}
         </FormGroup>
+        
         <FormGroup>
-  <Label>Select Location on Map</Label>
-  <LocationButton type="button" onClick={getCurrentLocation}>
-    Get Current Location
-  </LocationButton>
-  <MapContainer>
-    <LoadScript googleMapsApiKey="AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
-      <GoogleMap
-        mapContainerStyle={{ height: "100%", width: "100%" }}
-        center={center}
-        zoom={15}
-        onClick={handleMapClick}
-        onLoad={handleMapLoad}
-        options={{
-          zoomControl: true,
-          streetViewControl: false,
-          mapTypeControl: true,
-          fullscreenControl: true,
-        }}
-      >
-        {selectedLocation && (
-          <Marker position={selectedLocation} animation={2}>
-            {showInfoWindow && locationInfo && (
-              <InfoWindow
-                position={selectedLocation}
-                onCloseClick={() => setShowInfoWindow(false)}
+          <Label>Select Location on Map</Label>
+          <LocationButton type="button" onClick={getCurrentLocation}>
+            Get Current Location
+          </LocationButton>
+          <MapContainer>
+            <LoadScript googleMapsApiKey="AIzaSyCTREfSARKCah8_j3CSMXgsBZUMQyJWZYk">
+              <GoogleMap
+                mapContainerStyle={{ height: "100%", width: "100%" }}
+                center={center}
+                zoom={15}
+                onClick={handleMapClick}
+                onLoad={handleMapLoad}
+                options={{
+                  zoomControl: true,
+                  streetViewControl: false,
+                  mapTypeControl: true,
+                  fullscreenControl: true,
+                }}
               >
-                <InfoWindowContent>
-                  <h3>Selected Location</h3>
-                  <p>{locationInfo.fullAddress}</p>
-                  {locationInfo.street && <p>Street: {locationInfo.street}</p>}
-                  {locationInfo.subdistrict && <p>Sub-district: {locationInfo.subdistrict}</p>}
-                  {locationInfo.district && <p>District: {locationInfo.district}</p>}
-                  {locationInfo.province && <p>Province: {locationInfo.province}</p>}
-                  {locationInfo.postalCode && <p>Postal Code: {locationInfo.postalCode}</p>}
-                </InfoWindowContent>
-              </InfoWindow>
-            )}
-          </Marker>
-        )}
-      </GoogleMap>
-    </LoadScript>
-  </MapContainer>
-</FormGroup>
+                {selectedLocation && (
+                  <Marker position={selectedLocation} animation={2}>
+                    {showInfoWindow && locationInfo && (
+                      <InfoWindow
+                        position={selectedLocation}
+                        onCloseClick={() => setShowInfoWindow(false)}
+                      >
+                        <InfoWindowContent>
+                          <h3>Selected Location</h3>
+                          <p>{locationInfo.fullAddress}</p>
+                          {locationInfo.street && <p>Street: {locationInfo.street}</p>}
+                          {locationInfo.subdistrict && <p>Sub-district: {locationInfo.subdistrict}</p>}
+                          {locationInfo.district && <p>District: {locationInfo.district}</p>}
+                          {locationInfo.province && <p>Province: {locationInfo.province}</p>}
+                          {locationInfo.postalCode && <p>Postal Code: {locationInfo.postalCode}</p>}
+                        </InfoWindowContent>
+                      </InfoWindow>
+                    )}
+                  </Marker>
+                )}
+              </GoogleMap>
+            </LoadScript>
+          </MapContainer>
+        </FormGroup>
+
+        <FormGroup>
+          <Label>Audio Storage</Label>
+          <SmallText>
+            A storage folder for .wav audio files will be automatically created for this device.
+            The ESP32 will be able to upload audio recordings to this storage.
+          </SmallText>
+        </FormGroup>
 
         <ButtonContainer>
-          <Button type="button" onClick={() => navigate('/devices')}>
+          <Button type="button" onClick={() => navigate('/managedevices')}>
             Back
           </Button>
           <Button 

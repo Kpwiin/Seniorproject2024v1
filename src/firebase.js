@@ -2,6 +2,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { getStorage } from 'firebase/storage'; // เพิ่มการ import getStorage
 
 // Firebase configuration object
 const firebaseConfig = {
@@ -17,7 +18,7 @@ const firebaseConfig = {
 // Initialize Firebase app
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore and Auth
+// Initialize Firestore, Auth, and Storage
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-
+export const storage = getStorage(app); // เพิ่มการตั้งค่าและ export storage

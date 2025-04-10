@@ -1,4 +1,3 @@
-// src/components/Navbar.js
 import React, { useState, useEffect } from 'react';
 import { styled } from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -146,6 +145,13 @@ const UserAvatar = styled.div`
   text-transform: uppercase;
   box-shadow: 0 3px 6px rgba(33, 150, 243, 0.3);
   border: 2px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+`;
+
+const UserAvatarImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
 
 const Sidebar = styled.div`
@@ -159,7 +165,7 @@ const Sidebar = styled.div`
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
   transform: translateX(${props => props.isOpen ? '0' : '-100%'});
   transition: transform 0.3s ease;
-   z-index: 10000;
+  z-index: 10000;
 `;
 
 const Logo = styled.div`
@@ -305,6 +311,11 @@ function Navbar() {
     navigate(path);
   };
 
+  const handleSettingsClick = (e) => {
+    e.preventDefault();
+    navigate('/settings');
+  };
+
   return (
     <NavbarContainer isSidebarOpen={isSidebarOpen}>
       <Sidebar isOpen={isSidebarOpen}>
@@ -360,14 +371,14 @@ function Navbar() {
           </MenuItem>
         )}
 
-          <MenuItem 
-            href="/mydevice" 
-            active={currentPath === '/mydevice'}
-            onClick={handleMenuClick('/mydevice')}
-          >
-            <FaServer />
-            <span>My Device</span>
-          </MenuItem>
+        <MenuItem 
+          href="/mydevice" 
+          active={currentPath === '/mydevice'}
+          onClick={handleMenuClick('/mydevice')}
+        >
+          <FaServer />
+          <span>My Device</span>
+        </MenuItem>
       </Sidebar>
 
       <TopBar isSidebarOpen={isSidebarOpen}>
@@ -388,7 +399,7 @@ function Navbar() {
             </IconButton>
           )}
           
-          <IconButton title="Settings">
+          <IconButton title="Settings" onClick={handleSettingsClick}>
             <FaCog />
           </IconButton>
           
@@ -403,7 +414,11 @@ function Navbar() {
                 </div>
               </div>
               <UserAvatar>
-                {getInitials(userProfile?.username || user?.email.split('@')[0])}
+                {userProfile?.profileImageBase64 ? (
+                  <UserAvatarImage src={userProfile.profileImageBase64} alt="Profile" />
+                ) : (
+                  getInitials(userProfile?.username || user?.email.split('@')[0])
+                )}
               </UserAvatar>
             </UserProfile>
           </UserInfo>

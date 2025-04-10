@@ -7,7 +7,6 @@ import { useJsApiLoader, GoogleMap, Marker } from '@react-google-maps/api';
 import { FaCopy, FaEdit, FaKey, FaSync, FaTrash } from 'react-icons/fa';
 
 // Styled Components
-// Updated Styled Components
 const Container = styled.div`
   background-color: #000000;
   min-height: 100vh;
@@ -254,6 +253,8 @@ const ApiSection = styled.div`
   margin: 1rem 0;
   font-family: monospace;
   border: 1px solid #333;
+  max-height: 400px;
+  overflow-y: auto;
 `;
 
 const ApiLabel = styled.div`
@@ -388,23 +389,20 @@ function DeviceSettings() {
         // สร้าง API Key
         const newApiKey = `api_${Math.random().toString(36).substring(2, 15)}`;
         
-        // ลงทะเบียน API key กับ server
-        const registerResponse = await fetch('http://localhost:5001/api/register-key', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ apiKey: newApiKey })
-        });
-
-        if (!registerResponse.ok) {
-            throw new Error('Failed to register API key with server');
-        }
-
+        // สร้าง MQTT topics
+        const mqttTopics = {
+            data: `spl/device/${id}/data`,
+            audio: `spl/device/${id}/audio`,
+            settings: `spl/device/${id}/settings`,
+            status: `spl/device/${id}/status`,
+            registration: `spl/registration/broadcast`
+        };
+        
         // สร้าง API documentation
         const apiDoc = {
             endpoint: `http://localhost:5001/api/devices/${id}`,
             apiKey: newApiKey,
+            mqttTopics: mqttTopics,
             methods: {
                 GET: {
                     description: "Get device data",
@@ -414,8 +412,8 @@ function DeviceSettings() {
                         "Content-Type": "application/json"
                     }
                 },
-                POST: {
-                    description: "Send device data",
+                POST_DATA: {
+                    description: "Send noise level data",
                     url: `http://localhost:5001/api/devices/${id}/data`,
                     headers: {
                         "x-api-key": newApiKey,
@@ -424,6 +422,19 @@ function DeviceSettings() {
                     body: {
                         noiseLevel: "number (dB)",
                         timestamp: "string (ISO format)"
+                    }
+                },
+                POST_AUDIO: {
+                    description: "Upload audio file (.wav)",
+                    url: `http://localhost:5001/api/devices/${id}/audio`,
+                    headers: {
+                        "x-api-key": newApiKey,
+                        "Content-Type": "multipart/form-data"
+                    },
+                    body: {
+                        audio: "file (.wav)",
+                        timestamp: "string (ISO format)",
+                        noiseLevel: "number (dB)"
                     }
                 }
             }
@@ -434,7 +445,8 @@ function DeviceSettings() {
         await updateDoc(docRef, {
             apiKey: newApiKey,
             apiEndpoint: apiDoc.endpoint,
-            apiDocumentation: apiDoc
+            apiDocumentation: apiDoc,
+            mqttTopics: mqttTopics
         });
 
         // อัพเดท state
@@ -442,15 +454,13 @@ function DeviceSettings() {
         setDeviceData(prev => ({
             ...prev,
             apiKey: newApiKey,
-            apiEndpoint: apiDoc.endpoint
+            apiEndpoint: apiDoc.endpoint,
+            mqttTopics: mqttTopics
         }));
 
         // แสดง API documentation
         setActiveTab('api');
         setIsModalOpen(true);
-
-        // แสดงข้อความสำเร็จ
-        alert('API generated successfully!');
 
     } catch (error) {
         console.error('Error generating API:', error);
@@ -458,8 +468,18 @@ function DeviceSettings() {
     } finally {
         setIsLoading(false);
     }
-};
-  const handleShowToken = () => {
+  };
+
+  const handleShowToken = async () => {
+    // ถ้ายังไม่มี API data ให้สร้างก่อน
+    if (!apiData) {
+      try {
+        await generateApi();
+      } catch (error) {
+        console.error('Error generating API:', error);
+      }
+    }
+    
     setActiveTab('token');
     setIsModalOpen(true);
   };
@@ -479,7 +499,7 @@ function DeviceSettings() {
       const docRef = doc(db, 'devices', id);
       await deleteDoc(docRef);
       alert('Device removed successfully');
-      navigate('/devices');
+      navigate('/managedevices');
     } catch (error) {
       console.error('Error removing device:', error);
       alert('Failed to remove device');
@@ -491,7 +511,7 @@ function DeviceSettings() {
       const docRef = doc(db, 'devices', id);
       await updateDoc(docRef, deviceData);
       alert('Changes saved successfully!');
-      navigate('/devices');
+      navigate('/managedevices');
     } catch (error) {
       console.error('Error saving changes:', error);
       alert('Failed to save changes');
@@ -596,24 +616,16 @@ function DeviceSettings() {
                 hoverColor="#3e8e41"
               >
                 <FaKey />
-                Show Token
+                Show Token & API
               </ActionButton>
             </ButtonGroup>
 
             <ButtonGroup>
               <ActionButton 
-                onClick={generateApi}
-                color="#FF9800"
-                hoverColor="#F57C00"
-              >
-                <FaSync />
-                Generate API
-              </ActionButton>
-              
-              <ActionButton 
                 onClick={handleRemoveDevice}
                 color="#FF5252"
                 hoverColor="#D43F3F"
+                style={{ gridColumn: "1 / span 2" }}
               >
                 <FaTrash />
                 Remove Device
@@ -655,53 +667,108 @@ function DeviceSettings() {
               <>
                 <ModalTitle>API Documentation</ModalTitle>
                 <ApiSection>
-    <ApiLabel>Endpoint:</ApiLabel>
-    <ApiValue>
-        {apiData?.endpoint}
-        <CopyIcon onClick={() => {
-            navigator.clipboard.writeText(apiData?.endpoint);
-            alert('Endpoint copied to clipboard!');
-        }} />
-    </ApiValue>
+                  <ApiLabel>Endpoint:</ApiLabel>
+                  <ApiValue>
+                    {apiData?.endpoint}
+                    <CopyIcon onClick={() => {
+                      navigator.clipboard.writeText(apiData?.endpoint);
+                      alert('Endpoint copied to clipboard!');
+                    }} />
+                  </ApiValue>
 
-    <ApiLabel>API Key:</ApiLabel>
-    <ApiValue>
-        {apiData?.apiKey}
-        <CopyIcon onClick={() => {
-            navigator.clipboard.writeText(apiData?.apiKey);
-            alert('API Key copied to clipboard!');
-        }} />
-    </ApiValue>
+                  <ApiLabel>API Key:</ApiLabel>
+                  <ApiValue>
+                    {apiData?.apiKey}
+                    <CopyIcon onClick={() => {
+                      navigator.clipboard.writeText(apiData?.apiKey);
+                      alert('API Key copied to clipboard!');
+                    }} />
+                  </ApiValue>
 
-    <ApiMethod>
-        <ApiLabel>GET Request Example:</ApiLabel>
-        <ApiValue>
-            {`curl -X GET ${apiData?.methods?.GET?.url} \\
+                  <ApiMethod>
+                    <ApiLabel>MQTT Topics:</ApiLabel>
+                    <ApiValue>
+                      Data Topic: {apiData?.mqttTopics?.data}
+                      <CopyIcon onClick={() => {
+                        navigator.clipboard.writeText(apiData?.mqttTopics?.data);
+                        alert('Data topic copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                    <ApiValue>
+                      Audio Topic: {apiData?.mqttTopics?.audio}
+                      <CopyIcon onClick={() => {
+                        navigator.clipboard.writeText(apiData?.mqttTopics?.audio);
+                        alert('Audio topic copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                    <ApiValue>
+                      Settings Topic: {apiData?.mqttTopics?.settings}
+                      <CopyIcon onClick={() => {
+                        navigator.clipboard.writeText(apiData?.mqttTopics?.settings);
+                        alert('Settings topic copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                    <ApiValue>
+                      Status Topic: {apiData?.mqttTopics?.status}
+                      <CopyIcon onClick={() => {
+                        navigator.clipboard.writeText(apiData?.mqttTopics?.status);
+                        alert('Status topic copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                    <ApiValue>
+                      Registration Topic: {apiData?.mqttTopics?.registration}
+                      <CopyIcon onClick={() => {
+                        navigator.clipboard.writeText(apiData?.mqttTopics?.registration);
+                        alert('Registration topic copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                  </ApiMethod>
+
+                  <ApiMethod>
+                    <ApiLabel>GET Request Example:</ApiLabel>
+                    <ApiValue>
+                      {`curl -X GET ${apiData?.methods?.GET?.url} \\
 -H "x-api-key: ${apiData?.apiKey}" \\
 -H "Content-Type: application/json"`}
-            <CopyIcon onClick={() => {
-                const curlCommand = `curl -X GET ${apiData?.methods?.GET?.url} -H "x-api-key: ${apiData?.apiKey}" -H "Content-Type: application/json"`;
-                navigator.clipboard.writeText(curlCommand);
-                alert('GET request copied to clipboard!');
-            }} />
-        </ApiValue>
-    </ApiMethod>
+                      <CopyIcon onClick={() => {
+                        const curlCommand = `curl -X GET ${apiData?.methods?.GET?.url} -H "x-api-key: ${apiData?.apiKey}" -H "Content-Type: application/json"`;
+                        navigator.clipboard.writeText(curlCommand);
+                        alert('GET request copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                  </ApiMethod>
 
-    <ApiMethod>
-        <ApiLabel>POST Request Example:</ApiLabel>
-        <ApiValue>
-            {`curl -X POST ${apiData?.methods?.POST?.url} \\
+                  <ApiMethod>
+                    <ApiLabel>POST Noise Data Example:</ApiLabel>
+                    <ApiValue>
+                      {`curl -X POST ${apiData?.methods?.POST_DATA?.url} \\
 -H "x-api-key: ${apiData?.apiKey}" \\
 -H "Content-Type: application/json" \\
 -d '{"noiseLevel": 75, "timestamp": "${new Date().toISOString()}"}'`}
-            <CopyIcon onClick={() => {
-                const curlCommand = `curl -X POST ${apiData?.methods?.POST?.url} -H "x-api-key: ${apiData?.apiKey}" -H "Content-Type: application/json" -d '{"noiseLevel": 75, "timestamp": "${new Date().toISOString()}"}'`;
-                navigator.clipboard.writeText(curlCommand);
-                alert('POST request copied to clipboard!');
-            }} />
-        </ApiValue>
-    </ApiMethod>
-</ApiSection>
+                      <CopyIcon onClick={() => {
+                        const curlCommand = `curl -X POST ${apiData?.methods?.POST_DATA?.url} -H "x-api-key: ${apiData?.apiKey}" -H "Content-Type: application/json" -d '{"noiseLevel": 75, "timestamp": "${new Date().toISOString()}"}'`;
+                        navigator.clipboard.writeText(curlCommand);
+                        alert('POST noise data request copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                  </ApiMethod>
+
+                  <ApiMethod>
+                    <ApiLabel>POST Audio File (.wav) Example:</ApiLabel>
+                    <ApiValue>
+                      {`curl -X POST ${apiData?.methods?.POST_AUDIO?.url} \\
+-H "x-api-key: ${apiData?.apiKey}" \\
+-F "audio=@recording.wav" \\
+-F "timestamp=${new Date().toISOString()}" \\
+-F "noiseLevel=75"`}
+                      <CopyIcon onClick={() => {
+                        const curlCommand = `curl -X POST ${apiData?.methods?.POST_AUDIO?.url} -H "x-api-key: ${apiData?.apiKey}" -F "audio=@recording.wav" -F "timestamp=${new Date().toISOString()}" -F "noiseLevel=75"`;
+                        navigator.clipboard.writeText(curlCommand);
+                        alert('POST audio file request copied to clipboard!');
+                      }} />
+                    </ApiValue>
+                  </ApiMethod>
+                </ApiSection>
               </>
             )}
             <CloseButton onClick={() => setIsModalOpen(false)}>Close</CloseButton>

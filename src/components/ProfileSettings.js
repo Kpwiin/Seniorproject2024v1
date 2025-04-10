@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { FiUser, FiBell, FiLogOut, FiCamera, FiChevronRight, FiMail, FiLock, FiVolume2 } from 'react-icons/fi';
-import { useEffect } from "react";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
-import { signOut } from "firebase/auth";
-import { useNavigate } from "react-router-dom";
-import { auth } from "../firebase"; 
-
+import { updateProfile, updateEmail, updatePassword, reauthenticateWithCredential, 
+  EmailAuthProvider, sendEmailVerification } from "firebase/auth";
+import { auth, db } from "../firebase";
 
 const Container = styled.div`
   padding: 40px;
@@ -42,6 +40,10 @@ const ContentLayout = styled.div`
   display: grid;
   grid-template-columns: 350px 1fr;
   gap: 40px;
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const MenuList = styled.div`
@@ -89,6 +91,10 @@ const FormContainer = styled.div`
   grid-template-columns: minmax(auto, 600px) 300px;
   gap: 60px;
   align-items: start;
+  
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const FormSection = styled.div`
@@ -205,7 +211,16 @@ const SaveButton = styled.button`
   &:hover:after {
     transform: translateX(100%);
   }
+  
+  &:disabled {
+    background-color: #404040;
+    color: #808080;
+    cursor: not-allowed;
+    opacity: 0.7;
+    transform: none;
+  }
 `;
+
 const ProfileSection = styled.div`
   text-align: center;
   background: #1A1A1A;
@@ -231,6 +246,46 @@ const ProfileSection = styled.div`
       background: #FFFFFF;
       border-radius: 2px;
     }
+  }
+`;
+
+const ProfileImageContainer = styled.div`
+  width: 150px;
+  height: 150px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #2A2A2A;
+  position: relative;
+  
+  &:hover .overlay {
+    opacity: 1;
+  }
+`;
+
+const ProfileImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const ProfileImageOverlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+  
+  .camera-icon {
+    color: white;
+    font-size: 32px;
   }
 `;
 
@@ -435,6 +490,32 @@ const SliderValues = styled.div`
   margin-bottom: 24px;
 `;
 
+const StatusMessage = styled.div`
+  padding: 12px;
+  margin-top: 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+  
+  &.success {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+  }
+  
+  &.error {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: #F44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+  }
+  
+  &.loading {
+    background-color: rgba(33, 150, 243, 0.2);
+    color: #2196F3;
+    border: 1px solid rgba(33, 150, 243, 0.3);
+  }
+`;
+
 function Settings() {
   const [activeMenu, setActiveMenu] = useState('account');
   const [newsEnabled, setNewsEnabled] = useState(true);
@@ -442,12 +523,26 @@ function Settings() {
   const [threshold, setThreshold] = useState(80);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const navigate = useNavigate();  
+  const [password, setPassword] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [profileImage, setProfileImage] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState({ type: '', message: '' });
+  const fileInputRef = useRef(null);
+
+  // Function to convert file to base64
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
 
   useEffect(() => {
-    const auth = getAuth();
-    const db = getFirestore();
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDocRef = doc(db, "UserInfo", user.uid);
@@ -455,27 +550,130 @@ function Settings() {
 
         if (userDoc.exists()) {
           setUsername(userDoc.data().username || "");
-          setEmail(userDoc.data().email || "");
+          setEmail(user.email || "");
+          setNewUsername(userDoc.data().username || "");
+          
+          // Load profile image from base64 in database
+          if (userDoc.data().profileImageBase64) {
+            setProfileImage(userDoc.data().profileImageBase64);
+          }
         }
       }
     });
 
     return () => unsubscribe(); // Cleanup on unmount
   }, []);
-  
-  const handleSignOut = async () => {
-    const confirmLogout = window.confirm("Are you sure you want to log out?");
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     
-    if (confirmLogout) {
-      try {
-        await signOut(auth);
-        navigate('/login'); // Redirect to login page
-      } catch (error) {
-        console.error('Error signing out:', error);
-      }
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setStatusMessage({
+        type: 'error',
+        message: 'Invalid file type. Please upload a JPEG, PNG, or GIF image.'
+      });
+      return;
     }
-  };  
+    
+    // Validate file size (2MB max)
+    const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+    if (file.size > maxSize) {
+      setStatusMessage({
+        type: 'error',
+        message: 'File is too large. Maximum size is 2MB.'
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    setStatusMessage({ type: 'loading', message: 'Processing image...' });
+    
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('No user is signed in.');
+      }
+      
+      // Convert file to base64
+      const base64Image = await convertToBase64(file);
+      
+      // Update user document in Firestore with base64 image
+      const userDocRef = doc(db, "UserInfo", user.uid);
+      await updateDoc(userDocRef, {
+        profileImageBase64: base64Image
+      });
+      
+      // Update state
+      setProfileImage(base64Image);
+      setStatusMessage({
+        type: 'success',
+        message: 'Profile image updated successfully!'
+      });
+      
+      // Clear status message after 3 seconds
+      setTimeout(() => {
+        setStatusMessage({ type: '', message: '' });
+      }, 3000);
+    } catch (error) {
+      console.error('Error uploading profile image:', error);
+      setStatusMessage({
+        type: 'error',
+        message: `Failed to upload image: ${error.message}`
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
+  const handleDeleteProfileImage = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    setIsLoading(true);
+    setStatusMessage({ type: 'loading', message: 'Deleting profile image...' });
+    
+    try {
+      // Update user document in Firestore
+      const userDocRef = doc(db, "UserInfo", user.uid);
+      await updateDoc(userDocRef, {
+        profileImageBase64: null
+      });
+      
+      // Update state
+      setProfileImage(null);
+      setStatusMessage({
+        type: 'success',
+        message: 'Profile image deleted successfully!'
+      });
+      
+      // Clear status message after 3 seconds
+      setTimeout(() => {
+        setStatusMessage({ type: '', message: '' });
+      }, 3000);
+    } catch (error) {
+      console.error('Error deleting profile image:', error);
+      setStatusMessage({
+        type: 'error',
+        message: `Failed to delete image: ${error.message}`
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error signing out:', error);
+      alert('Failed to sign out');
+    }
+  };
+
   const renderContent = () => {
     if (activeMenu === 'notifications') {
       return (
@@ -620,58 +818,204 @@ function Settings() {
             color: '#FFFFFF',
             fontSize: '16px'
           }}>
-            Save change
+            Save changes
           </SaveButton>
         </FormContainer>
       );
     }
 
+    const handleUpdateProfile = async () => {
+      setIsLoading(true);
+      setStatusMessage({ type: 'loading', message: 'Updating profile...' });
+    
+      try {
+        const user = auth.currentUser;
+        if (!user) {
+          throw new Error('No user is signed in.');
+        }
+    
+        const uid = user.uid;
+        const userDocRef = doc(db, "UserInfo", uid);
+        const docSnap = await getDoc(userDocRef);
+    
+        if (!docSnap.exists()) {
+          throw new Error('User document does not exist');
+        }
+    
+        // Re-authentication if needed
+        if ((email !== user.email || newPassword) && currentPassword) {
+          const credential = EmailAuthProvider.credential(user.email, currentPassword);
+          try {
+            await reauthenticateWithCredential(user, credential);
+          } catch (reauthError) {
+            throw new Error('Failed to re-authenticate. Please check your current password.');
+          }
+        } else if ((email !== user.email || newPassword) && !currentPassword) {
+          throw new Error('Please enter your current password to update email or password.');
+        }
+    
+        // Update email if changed
+        if (email !== user.email) {
+          try {
+            await updateEmail(user, email);
+            await sendEmailVerification(user);
+            setStatusMessage({
+              type: 'success',
+              message: 'A verification email has been sent to your new email. Please verify it.'
+            });
+            return;
+          } catch (emailErr) {
+            throw new Error('Failed to update email: ' + emailErr.message);
+          }
+        }
+    
+        // Update password if provided
+        if (newPassword) {
+          try {
+            await updatePassword(user, newPassword);
+          } catch (passErr) {
+            throw new Error('Failed to update password: ' + passErr.message);
+          }
+        }
+    
+        // Update username in Firestore
+        if (newUsername !== username) {
+          await updateDoc(userDocRef, { username: newUsername });
+        }
+    
+        setStatusMessage({
+          type: 'success',
+          message: 'Profile updated successfully!'
+        });
+        
+        // Update local state
+        setUsername(newUsername);
+        
+        // Clear password fields
+        setCurrentPassword('');
+        setNewPassword('');
+        
+        // Clear status message after 3 seconds
+        setTimeout(() => {
+          setStatusMessage({ type: '', message: '' });
+        }, 3000);
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        setStatusMessage({
+          type: 'error',
+          message: error.message
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     return (
       <FormContainer>
-         <FormSection>
-        <FormTitle>Edit your profile</FormTitle>
-        <FormGroup>
-          <Label>
-            <FiUser className="label-icon" />
-            Username
-          </Label>
-          <Input 
-          type="text" 
-          value={username}
-          placeholder="Enter your username"
-        />
+        <FormSection>
+          <FormTitle>Edit your profile</FormTitle>
+          <FormGroup>
+            <Label>
+              <FiUser className="label-icon" />
+              Username
+            </Label>
+            <Input 
+              type="text"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              placeholder="Enter your username"
+            />
+          </FormGroup>
 
-        </FormGroup>
-
-
-        <FormGroup>
-          <Label>
-            <FiMail className="label-icon" />
-            Email
-          </Label>
-          <Input type="email" defaultValue={email} placeholder="Enter your email" />
-        </FormGroup>
-        <FormGroup>
-          <Label>
-            <FiLock className="label-icon" />
-            Password
-          </Label>
-          <Input type="password" defaultValue="••••••••••••••••••••••••" />
-          <ChangePasswordLink>Change password</ChangePasswordLink>
-        </FormGroup>
-        <SaveButton>Save changes</SaveButton>
-      </FormSection>
+          <FormGroup>
+            <Label>
+              <FiMail className="label-icon" />
+              Email
+            </Label>
+            <Input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              placeholder="Enter new email"
+            />
+          </FormGroup>
+          
+          <FormGroup>
+            <Label>
+              <FiLock className="label-icon" />
+              Current Password
+            </Label>
+            <Input 
+              type="password" 
+              value={currentPassword} 
+              onChange={(e) => setCurrentPassword(e.target.value)} 
+              placeholder="Enter your current password (needed for email/password changes)"
+            />
+          </FormGroup>
+          
+          <FormGroup>
+            <Label>
+              <FiLock className="label-icon" />
+              New Password
+            </Label>
+            <Input 
+              type="password" 
+              value={newPassword} 
+              onChange={(e) => setNewPassword(e.target.value)} 
+              placeholder="Enter new password (leave blank to keep current)" 
+            />
+          </FormGroup>
+          
+          <SaveButton 
+            onClick={handleUpdateProfile}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Saving...' : 'Save changes'}
+          </SaveButton>
+          
+          {statusMessage.message && (
+            <StatusMessage className={statusMessage.type}>
+              {statusMessage.message}
+            </StatusMessage>
+          )}
+        </FormSection>
 
         <ProfileSection>
           <h3>Your Profile Picture</h3>
-          <UploadBox>
-            <FiCamera className="camera-icon" />
-            <span>Upload your photo</span>
-            <span style={{ fontSize: '12px', color: '#666666' }}>
-              Max file size: 2MB
-            </span>
-          </UploadBox>
-          <DeleteLink>Delete avatar</DeleteLink>
+          
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            accept="image/jpeg, image/png, image/gif"
+            onChange={handleFileUpload}
+          />
+          
+          {profileImage ? (
+            <>
+              <ProfileImageContainer>
+                <ProfileImage src={profileImage} alt="Profile" />
+                <ProfileImageOverlay 
+                  className="overlay"
+                  onClick={() => fileInputRef.current.click()}
+                >
+                  <FiCamera className="camera-icon" />
+                </ProfileImageOverlay>
+              </ProfileImageContainer>
+              <DeleteLink onClick={handleDeleteProfileImage}>
+                Delete avatar
+              </DeleteLink>
+            </>
+          ) : (
+            <UploadBox onClick={() => fileInputRef.current.click()}>
+              <FiCamera className="camera-icon" />
+              <span>Upload your photo</span>
+              <span style={{ fontSize: '12px', color: '#666666' }}>
+                Max file size: 2MB
+              </span>
+            </UploadBox>
+          )}
         </ProfileSection>
       </FormContainer>
     );
@@ -699,7 +1043,7 @@ function Settings() {
               Notification settings
               <FiChevronRight className="arrow" />
             </MenuItem>
-            <MenuItem onClick={handleSignOut}>
+            <MenuItem onClick={handleLogout}>
               <FiLogOut className="icon" />
               Log Out
               <FiChevronRight className="arrow" />
