@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { styled } from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
@@ -436,10 +436,6 @@ function Navbar() {
     setShowNotifications(!showNotifications);
   };
   
-  
-  
-  
-  
   const getInitials = (name) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').slice(0, 2);
@@ -537,14 +533,29 @@ function Navbar() {
         <UserSection>
           {hasNotifications ? (
             <NotificationBadge>
-              <IconButton title="Notifications">
+              <IconButton ref={bellRef} onClick={handleBellClick} title="Notifications">
                 <FaBell />
               </IconButton>
             </NotificationBadge>
           ) : (
-            <IconButton title="Notifications">
+            <IconButton ref={bellRef} onClick={handleBellClick} title="Notifications">
               <FaBell />
             </IconButton>
+          )}
+          
+          {showNotifications && (
+            <NotificationModal style={{ top: modalPosition.top, left: modalPosition.left }}>
+              <ModalTitle>Notifications</ModalTitle>
+              {notifications.length > 0 ? (
+                notifications.map((notification, index) => (
+                  <DeviceNotification key={index}>
+                    <strong>{notification.deviceName}</strong> detected noise at {notification.level} dB
+                  </DeviceNotification>
+                ))
+              ) : (
+                <DeviceNotification>No new notifications</DeviceNotification>
+              )}
+            </NotificationModal>
           )}
           
           <IconButton title="Settings" onClick={handleSettingsClick}>
@@ -555,7 +566,7 @@ function Navbar() {
             <UserProfile>
               <div>
                 <div className="username">
-                  {userProfile?.username || user?.email.split('@')[0] || 'User'}
+                  {userProfile?.username || user?.email?.split('@')[0] || 'User'}
                 </div>
                 <div className="role">
                   {userProfile?.role === 'admin' ? 'Administrator' : 'User'}
@@ -565,7 +576,7 @@ function Navbar() {
                 {userProfile?.profileImageBase64 ? (
                   <UserAvatarImage src={userProfile.profileImageBase64} alt="Profile" />
                 ) : (
-                  getInitials(userProfile?.username || user?.email.split('@')[0])
+                  getInitials(userProfile?.username || (user?.email ? user.email.split('@')[0] : 'User'))
                 )}
               </UserAvatar>
             </UserProfile>

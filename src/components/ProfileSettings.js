@@ -447,7 +447,6 @@ function Settings() {
   const [threshold, setThreshold] = useState(80);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -473,13 +472,19 @@ function Settings() {
         const userDoc = await getDoc(userDocRef);
   
         if (userDoc.exists()) {
-          setUsername(userDoc.data().username || "");
+          const data = userDoc.data();
+          
+          // Load notification settings
+          setNewsEnabled(data.newsEnabled ?? true);
+          setNoiseEnabled(data.noiseEnabled ?? true);
+          setThreshold(data.threshold ?? 80);
+          setUsername(data.username || "");
           setEmail(user.email || "");
-          setNewUsername(userDoc.data().username || "");
+          setNewUsername(data.username || "");
           
           // Load profile image from base64 in database
-          if (userDoc.data().profileImageBase64) {
-            setProfileImage(userDoc.data().profileImageBase64);
+          if (data.profileImageBase64) {
+            setProfileImage(data.profileImageBase64);
           }
         }
       }
@@ -487,7 +492,41 @@ function Settings() {
   
     return () => unsubscribe();
   }, []);
-
+  
+  const handleSaveNotifications = async () => {
+    try {
+      const confirmSave = window.confirm("Are you sure you want to save these notification settings?");
+      if (!confirmSave) return; 
+  
+      const user = auth.currentUser;
+  
+      if (user) {
+        const userDocRef = doc(db, "UserInfo", user.uid);
+        await updateDoc(userDocRef, {
+          newsEnabled,
+          noiseEnabled,
+          threshold: Number(threshold),
+        });
+        
+        setStatusMessage({
+          type: 'success',
+          message: 'Notification settings saved successfully!'
+        });
+        
+        // Clear status message after 3 seconds
+        setTimeout(() => {
+          setStatusMessage({ type: '', message: '' });
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      setStatusMessage({
+        type: 'error',
+        message: `Failed to save settings: ${error.message}`
+      });
+    }
+  };  
+  
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -590,11 +629,100 @@ function Settings() {
 
   const handleLogout = async () => {
     try {
+      const confirmLogout = window.confirm("Are you sure you want to log out?");
+      if (!confirmLogout) return;
+      
       await signOut(auth);
       window.location.href = '/login';
     } catch (error) {
       console.error('Error signing out:', error);
       alert('Failed to sign out');
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    setIsLoading(true);
+    setStatusMessage({ type: 'loading', message: 'Updating profile...' });
+  
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('No user is signed in.');
+      }
+  
+      const uid = user.uid;
+      const userDocRef = doc(db, "UserInfo", uid);
+      const docSnap = await getDoc(userDocRef);
+  
+      if (!docSnap.exists()) {
+        throw new Error('User document does not exist');
+      }
+  
+      // Re-authentication if needed
+      if ((email !== user.email || newPassword) && currentPassword) {
+        const credential = EmailAuthProvider.credential(user.email, currentPassword);
+        try {
+          await reauthenticateWithCredential(user, credential);
+        } catch (reauthError) {
+          throw new Error('Failed to re-authenticate. Please check your current password.');
+        }
+      } else if ((email !== user.email || newPassword) && !currentPassword) {
+        throw new Error('Please enter your current password to update email or password.');
+      }
+  
+      // Update email if changed
+      if (email !== user.email) {
+        try {
+          await updateEmail(user, email);
+          await sendEmailVerification(user);
+          setStatusMessage({
+            type: 'success',
+            message: 'A verification email has been sent to your new email. Please verify it.'
+          });
+          return;
+        } catch (emailErr) {
+          throw new Error('Failed to update email: ' + emailErr.message);
+        }
+      }
+  
+      // Update password if provided
+      if (newPassword) {
+        try {
+          await updatePassword(user, newPassword);
+        } catch (passErr) {
+          throw new Error('Failed to update password: ' + passErr.message);
+        }
+      }
+  
+      // Update username in Firestore
+      if (newUsername !== username) {
+        await updateDoc(userDocRef, { username: newUsername });
+      }
+  
+      setStatusMessage({
+        type: 'success',
+        message: 'Profile updated successfully!'
+      });
+      
+      // Update local state
+      setUsername(newUsername);
+      
+      // Clear password fields
+      setCurrentPassword('');
+      setNewPassword('');
+      
+      // Clear status message after 3 seconds
+      setTimeout(() => {
+        setStatusMessage({ type: '', message: '' });
+      }, 3000);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      setStatusMessage({
+        type: 'error',
+        message: error.message
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -737,102 +865,26 @@ function Settings() {
           </div>
     
           {/* Save Button */}
-          <SaveButton style={{ 
-            background: '#4169E1',
-            color: '#FFFFFF',
-            fontSize: '16px'
-          }}>
-            Save changes
+          <SaveButton 
+            onClick={handleSaveNotifications}
+            disabled={isLoading}
+            style={{ 
+              background: '#4169E1',
+              color: '#FFFFFF',
+              fontSize: '16px'
+            }}
+          >
+            {isLoading ? 'Saving...' : 'Save changes'}
           </SaveButton>
+          
+          {statusMessage.message && (
+            <StatusMessage className={statusMessage.type}>
+              {statusMessage.message}
+            </StatusMessage>
+          )}
         </FormContainer>
       );
     }
-
-    const handleUpdateProfile = async () => {
-      setIsLoading(true);
-      setStatusMessage({ type: 'loading', message: 'Updating profile...' });
-    
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          throw new Error('No user is signed in.');
-        }
-    
-        const uid = user.uid;
-        const userDocRef = doc(db, "UserInfo", uid);
-        const docSnap = await getDoc(userDocRef);
-    
-        if (!docSnap.exists()) {
-          throw new Error('User document does not exist');
-        }
-    
-        // Re-authentication if needed
-        if ((email !== user.email || newPassword) && currentPassword) {
-          const credential = EmailAuthProvider.credential(user.email, currentPassword);
-          try {
-            await reauthenticateWithCredential(user, credential);
-          } catch (reauthError) {
-            throw new Error('Failed to re-authenticate. Please check your current password.');
-          }
-        } else if ((email !== user.email || newPassword) && !currentPassword) {
-          throw new Error('Please enter your current password to update email or password.');
-        }
-    
-        // Update email if changed
-        if (email !== user.email) {
-          try {
-            await updateEmail(user, email);
-            await sendEmailVerification(user);
-            setStatusMessage({
-              type: 'success',
-              message: 'A verification email has been sent to your new email. Please verify it.'
-            });
-            return;
-          } catch (emailErr) {
-            throw new Error('Failed to update email: ' + emailErr.message);
-          }
-        }
-    
-        // Update password if provided
-        if (newPassword) {
-          try {
-            await updatePassword(user, newPassword);
-          } catch (passErr) {
-            throw new Error('Failed to update password: ' + passErr.message);
-          }
-        }
-    
-        // Update username in Firestore
-        if (newUsername !== username) {
-          await updateDoc(userDocRef, { username: newUsername });
-        }
-    
-        setStatusMessage({
-          type: 'success',
-          message: 'Profile updated successfully!'
-        });
-        
-        // Update local state
-        setUsername(newUsername);
-        
-        // Clear password fields
-        setCurrentPassword('');
-        setNewPassword('');
-        
-        // Clear status message after 3 seconds
-        setTimeout(() => {
-          setStatusMessage({ type: '', message: '' });
-        }, 3000);
-      } catch (error) {
-        console.error('Error updating profile:', error);
-        setStatusMessage({
-          type: 'error',
-          message: error.message
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
     
     return (
       <FormContainer>
