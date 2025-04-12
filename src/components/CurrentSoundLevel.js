@@ -1,57 +1,71 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase'; // Ensure your firebase configuration is correct
+import { collection, query, orderBy, limit, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const CurrentSoundLevel = ({ deviceId }) => {
   const [currentLevel, setCurrentLevel] = useState(null);
+  const [highestLevelToday, setHighestLevelToday] = useState(null);
   const [audioURL, setAudioURL] = useState(null);
   const [classification, setClassification] = useState(null);
 
   useEffect(() => {
-    // Early exit if no deviceId is provided
-    console.log("Device ID from props:", deviceId);
     if (!deviceId) return;
 
-    // Create the Firestore query to fetch the latest sound data for the given deviceId
-    const q = query(
+    // Get the start and end timestamps for today
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    const startTimestamp = Math.floor(startOfDay.getTime() / 1000); // in seconds
+    const endTimestamp = Math.floor(endOfDay.getTime() / 1000);     // in seconds
+
+    // Fetch the highest level recorded today
+    const fetchHighestLevel = async () => {
+      const dailyQuery = query(
+        collection(db, 'sounds'),
+        where('deviceId', '==', deviceId),
+        where('date._seconds', '>=', startTimestamp),
+        where('date._seconds', '<=', endTimestamp)
+      );
+
+      const snapshot = await getDocs(dailyQuery);
+      if (!snapshot.empty) {
+        const levels = snapshot.docs.map(doc => doc.data().level || 0);
+        const maxLevel = Math.max(...levels);
+        setHighestLevelToday(maxLevel);
+      } else {
+        setHighestLevelToday(null);
+      }
+    };
+
+    fetchHighestLevel();
+
+    // Real-time listener for the most recent sound level
+    const latestQuery = query(
       collection(db, 'sounds'),
-      where('deviceId', '==', deviceId), // Filter by deviceId
-      orderBy('date._seconds', 'desc'),  // Order by seconds field of the date object
-      limit(1)  // Limit to the most recent document
+      where('deviceId', '==', deviceId),
+      orderBy('date._seconds', 'desc'),
+      limit(1)
     );
 
-    // Listen to the query snapshot and update state accordingly
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log("Snapshot data:", snapshot);  // Debugging: Check if the snapshot is returned correctly
-
+    const unsubscribe = onSnapshot(latestQuery, (snapshot) => {
       if (!snapshot.empty) {
         const docData = snapshot.docs[0].data();
-        console.log("Document data:", docData);  // Debugging: Log the fetched document data
-
         setCurrentLevel(docData.level);
         setClassification(docData.result);
         setAudioURL(docData.audioURL || null);
-      } else {
-        console.log("No documents found for deviceId:", deviceId);  // Debugging: No data found for the given deviceId
       }
     });
 
-    // Cleanup on component unmount
     return () => unsubscribe();
   }, [deviceId]);
 
-  // Function to determine noise status based on the sound level
   const getNoiseStatus = (level) => {
-    if (level > 85) {
-      return { text: "Danger", color: "red" };
-    } else if (level >= 70) {
-      return { text: "Caution", color: "yellow" };
-    } else {
-      return { text: "Safe", color: "green" };
-    }
+    if (level > 85) return { text: "Danger", color: "red" };
+    if (level >= 70) return { text: "Caution", color: "yellow" };
+    return { text: "Safe", color: "green" };
   };
 
-  // Get the current noise status based on the level
   const noiseStatus = currentLevel !== null ? getNoiseStatus(currentLevel) : null;
 
   return (
@@ -63,13 +77,11 @@ const CurrentSoundLevel = ({ deviceId }) => {
             <span style={{ color: noiseStatus.color }}> {currentLevel} dB</span>
           </p>
           <p className="status">
-            <strong>Status: </strong>
-            <span style={{ color: noiseStatus.color }}>
-              {noiseStatus.text}
-            </span>
+            <strong>Status:</strong>
+            <span style={{ color: noiseStatus.color }}> {noiseStatus.text}</span>
           </p>
           <p className="source">
-            <strong>Noise Source: </strong> 
+            <strong>Noise Source:</strong>
             <span style={{ color: noiseStatus.color }}>
               {noiseStatus.text === "Safe" ? "Unidentified" : classification || 'N/A'}
             </span>
@@ -84,6 +96,12 @@ const CurrentSoundLevel = ({ deviceId }) => {
             </div>
           ) : (
             <p className="no-audio">No audio sample available.</p>
+          )}
+
+          {highestLevelToday !== null && (
+            <p className="highest-today">
+              <strong>Highest Level Today:</strong> {highestLevelToday} dB
+            </p>
           )}
         </div>
       ) : (
