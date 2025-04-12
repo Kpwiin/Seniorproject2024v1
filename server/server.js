@@ -4,6 +4,7 @@ const mqtt = require('mqtt');
 const crypto = require('crypto');
 const multer = require('multer');
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 const path = require('path');
 const admin = require('firebase-admin');
 const { promisify } = require('util');
@@ -22,10 +23,15 @@ const class_labels = [
     'Others'
 ];
 
-// สร้างโฟลเดอร์ uploads ถ้ายังไม่มี
+// สร้างโฟลเดอร์ recordings และ uploads
+const recordingsDir = path.join(__dirname, 'recordings');
 const uploadDir = path.join(__dirname, 'uploads');
+
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
+}
+if (!fs.existsSync(recordingsDir)) {
+    fs.mkdirSync(recordingsDir, { recursive: true });
 }
 
 // เชื่อมต่อกับ Firebase
@@ -96,14 +102,10 @@ async function predictNoiseWithFlaskAPI(audioBuffer) {
         console.log('Simulating noise prediction');
         console.log('Audio buffer size:', audioBuffer.length);
 
-        // สุ่มเลือกประเภทเสียง
         const randomIndex = Math.floor(Math.random() * class_labels.length);
         const predictedClass = class_labels[randomIndex];
-
-        // สร้างค่าความน่าจะเป็นแบบสุ่ม (50-100%)
         const mainProbability = 50 + Math.random() * 50;
 
-        // สร้าง predictions สำหรับทุกประเภทเสียง
         const predictions = class_labels.map(label => {
             if (label === predictedClass) {
                 return {
@@ -111,7 +113,6 @@ async function predictNoiseWithFlaskAPI(audioBuffer) {
                     probability: parseFloat(mainProbability.toFixed(2))
                 };
             } else {
-                // สำหรับ class อื่นๆ ให้มีค่าความน่าจะเป็นน้อยกว่า class หลัก
                 return {
                     class: label,
                     probability: parseFloat((Math.random() * (mainProbability - 10)).toFixed(2))
@@ -119,7 +120,6 @@ async function predictNoiseWithFlaskAPI(audioBuffer) {
             }
         });
 
-        // เรียงลำดับตามความน่าจะเป็นจากมากไปน้อย
         const sortedPredictions = predictions.sort((a, b) => b.probability - a.probability);
 
         console.log('Prediction result:', {
@@ -143,6 +143,7 @@ async function predictNoiseWithFlaskAPI(audioBuffer) {
         };
     }
 }
+
 async function getOrCreateDeviceId(macAddress) {
     try {
         const cleanMacAddress = macAddress.replace(/:/g, '').toLowerCase();
@@ -261,7 +262,6 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
         const { deviceId } = req.params;
         const { spl_value } = req.query;
 
-        // สร้าง reference ไปยัง device document ตั้งแต่ต้น
         const deviceRef = db.collection('devices').doc(deviceId);
         const deviceDoc = await deviceRef.get();
 
@@ -282,16 +282,23 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
                 const audioBuffer = Buffer.concat(chunks);
                 console.log('Received audio file size:', audioBuffer.length);
 
-                // แปลงเป็น base64
-                const audioBase64 = audioBuffer.toString('base64');
+                // สร้างโฟลเดอร์สำหรับแต่ละอุปกรณ์
+                const deviceDir = path.join(recordingsDir, deviceId);
+                await fsPromises.mkdir(deviceDir, { recursive: true });
+
+                // สร้างชื่อไฟล์และ path
                 const timestamp = admin.firestore.Timestamp.now();
+                const filename = `${timestamp.seconds}_${timestamp.nanoseconds}.wav`;
+                const filepath = path.join(deviceDir, filename);
+
+                // บันทึกไฟล์
+                await fsPromises.writeFile(filepath, audioBuffer);
 
                 // ทำนายประเภทเสียง
                 console.log('Predicting noise type...');
                 const prediction = await predictNoiseWithFlaskAPI(audioBuffer);
                 console.log('Prediction result:', prediction);
-                
-                // สร้างข้อมูลพื้นฐาน
+
                 const soundData = {
                     deviceId: deviceId,
                     level: parseFloat(spl_value),
@@ -299,17 +306,15 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
                         _seconds: timestamp.seconds,
                         _nanoseconds: timestamp.nanoseconds
                     },
-                    audioData: audioBase64,
+                    audioPath: filepath,
                     result: prediction.class,
-                    macAddress: deviceDoc.data().macAddress // ใช้ MAC address จาก device document
+                    macAddress: deviceDoc.data().macAddress
                 };
 
-                // บันทึกข้อมูล
                 const nextDocId = await getNextDocumentId('sounds');
                 const soundRef = db.collection('sounds').doc(nextDocId);
                 await soundRef.set(soundData);
 
-                // อัพเดทข้อมูลอุปกรณ์
                 await deviceRef.update({
                     lastSeen: admin.firestore.FieldValue.serverTimestamp(),
                     lastSPLValue: parseFloat(spl_value),
@@ -317,7 +322,6 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
                     lastRecordingId: nextDocId
                 });
 
-                // ส่งผลการทำนายผ่าน MQTT
                 const mqttTopic = `spl/device/${deviceId}/prediction`;
                 const mqttMessage = JSON.stringify({
                     device_id: deviceId,
@@ -357,13 +361,60 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
         });
     }
 });
+
+// เพิ่ม endpoint สำหรับดาวน์โหลดไฟล์เสียง
+app.get('/api/recordings/:recordingId/download', async (req, res) => {
+    try {
+        const { recordingId } = req.params;
+        
+        const soundRef = db.collection('sounds').doc(recordingId);
+        const soundDoc = await soundRef.get();
+
+        if (!soundDoc.exists) {
+            return res.status(404).json({
+                success: false,
+                message: 'Recording not found'
+            });
+        }
+
+        const soundData = soundDoc.data();
+        const filepath = soundData.audioPath;
+
+        try {
+            await fsPromises.access(filepath);
+        } catch (error) {
+            return res.status(404).json({
+                success: false,
+                message: 'Audio file not found'
+            });
+        }
+
+        res.download(filepath, path.basename(filepath), (err) => {
+            if (err) {
+                console.error('Error downloading file:', err);
+                res.status(500).json({
+                    success: false,
+                    message: 'Failed to download file'
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting recording:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get recording',
+            error: error.message
+        });
+    }
+});
+
 // แก้ไข endpoint สำหรับอัพเดตการตั้งค่า
 app.put('/api/devices/:deviceId', async (req, res) => {
     try {
         const { deviceId } = req.params;
         const updateData = {};
 
-        // รวบรวมข้อมูลที่จะอัพเดต
         if (req.body.noiseThreshold !== undefined) {
             updateData.noiseThreshold = Number(req.body.noiseThreshold);
         }
@@ -379,24 +430,16 @@ app.put('/api/devices/:deviceId', async (req, res) => {
 
         updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
 
-        // อัพเดตข้อมูลใน Firestore
         const deviceRef = db.collection('devices').doc(deviceId);
         await deviceRef.update(updateData);
 
-        // ส่งข้อมูลผ่าน MQTT ไปยังอุปกรณ์
         const mqttTopic = `spl/device/${deviceId}/settings`;
         const mqttMessage = JSON.stringify({
             ...updateData,
             timestamp: Date.now()
         });
 
-        mqttClient.publish(mqttTopic, mqttMessage, { retain: true }, (err) => {
-            if (err) {
-                console.error('Error publishing MQTT message:', err);
-            } else {
-                console.log('Published MQTT message:', mqttTopic, mqttMessage);
-            }
-        });
+        mqttClient.publish(mqttTopic, mqttMessage, { retain: true });
 
         res.json({
             success: true,
@@ -414,16 +457,14 @@ app.put('/api/devices/:deviceId', async (req, res) => {
         });
     }
 });
-// เพิ่ม endpoint สำหรับอัพเดตสถานะ
+
+// อัพเดตสถานะอุปกรณ์
 app.put('/api/devices/:deviceId/status', async (req, res) => {
     try {
         const { deviceId } = req.params;
         const { status } = req.body;
 
-        console.log('Updating device status:', {
-            deviceId,
-            status
-        });
+        console.log('Updating device status:', { deviceId, status });
 
         if (!status) {
             return res.status(400).json({
@@ -432,7 +473,6 @@ app.put('/api/devices/:deviceId/status', async (req, res) => {
             });
         }
 
-        // อัพเดตสถานะใน Firestore
         const deviceRef = db.collection('devices').doc(deviceId);
         const deviceDoc = await deviceRef.get();
 
@@ -448,22 +488,13 @@ app.put('/api/devices/:deviceId/status', async (req, res) => {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // ส่งข้อมูลผ่าน MQTT ไปยังอุปกรณ์
         const mqttTopic = `spl/device/${deviceId}/settings`;
         const mqttMessage = JSON.stringify({
             status: status,
             timestamp: Date.now()
         });
 
-        mqttClient.publish(mqttTopic, mqttMessage, { retain: true }, (err) => {
-            if (err) {
-                console.error('Error publishing MQTT message:', err);
-            } else {
-                console.log('Published MQTT message:', mqttTopic, mqttMessage);
-            }
-        });
-
-        console.log(`Successfully updated device ${deviceId} status to ${status}`);
+        mqttClient.publish(mqttTopic, mqttMessage, { retain: true });
 
         res.json({
             success: true,
@@ -481,7 +512,8 @@ app.put('/api/devices/:deviceId/status', async (req, res) => {
         });
     }
 });
-// เพิ่ม endpoint สำหรับดึงข้อมูลอุปกรณ์
+
+// ดึงข้อมูลอุปกรณ์
 app.get('/api/devices/:deviceId', async (req, res) => {
     try {
         const { deviceId } = req.params;
@@ -496,13 +528,11 @@ app.get('/api/devices/:deviceId', async (req, res) => {
             });
         }
 
-        const deviceData = deviceDoc.data();
-
         res.json({
             success: true,
             device: {
                 id: deviceId,
-                ...deviceData
+                ...deviceDoc.data()
             }
         });
 
@@ -516,7 +546,7 @@ app.get('/api/devices/:deviceId', async (req, res) => {
     }
 });
 
-// เพิ่ม endpoint สำหรับดึงรายการอุปกรณ์ทั้งหมด
+// ดึงรายการอุปกรณ์ทั้งหมด
 app.get('/api/devices', async (req, res) => {
     try {
         const devicesRef = db.collection('devices');
@@ -552,9 +582,7 @@ mqttClient.on('message', async (topic, message) => {
         
         const messageData = JSON.parse(message.toString());
         
-        // แยกประเภทของ topic
         if (topic.includes('/status')) {
-            // จัดการข้อความสถานะ
             const deviceId = messageData.device_id;
             if (!deviceId) {
                 console.log('No device ID in status message');
@@ -570,7 +598,6 @@ mqttClient.on('message', async (topic, message) => {
 
             console.log(`Updated device ${deviceId} status to ${messageData.status}`);
 
-            // ส่งการยืนยันกลับไปยังอุปกรณ์
             const confirmTopic = `spl/device/${deviceId}/status/confirm`;
             mqttClient.publish(confirmTopic, JSON.stringify({
                 status: messageData.status,
@@ -578,7 +605,6 @@ mqttClient.on('message', async (topic, message) => {
             }));
 
         } else if (topic.includes('/settings/update')) {
-            // จัดการการอัพเดทการตั้งค่า
             const deviceId = messageData.device_id;
             if (!deviceId) {
                 console.log('No device ID in settings update message');
@@ -606,7 +632,6 @@ mqttClient.on('message', async (topic, message) => {
 
             console.log(`Updated device ${deviceId} settings:`, updateData);
 
-            // ส่งการยืนยันกลับไปยังอุปกรณ์
             const confirmTopic = `spl/device/${deviceId}/settings/confirm`;
             mqttClient.publish(confirmTopic, JSON.stringify({
                 ...updateData,
@@ -614,7 +639,6 @@ mqttClient.on('message', async (topic, message) => {
             }));
 
         } else if (topic.includes('/data')) {
-            // จัดการข้อมูล SPL
             const deviceId = messageData.device_id;
             const macAddress = messageData.mac_address;
             
@@ -655,7 +679,7 @@ mqttClient.on('message', async (topic, message) => {
     }
 });
 
-// เพิ่ม MQTT subscriptions
+// MQTT subscriptions
 mqttClient.on('connect', () => {
     console.log('Connected to MQTT broker');
     mqttClient.subscribe('spl/device/+/data');
@@ -663,6 +687,7 @@ mqttClient.on('connect', () => {
     mqttClient.subscribe('spl/device/+/info');
     mqttClient.subscribe('spl/device/+/settings/update');
 });
+
 // Error handler
 app.use((err, req, res, next) => {
     console.error('Error:', err);
