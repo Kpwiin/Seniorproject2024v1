@@ -211,6 +211,7 @@ const SearchInput = styled.input`
   border: 1px solid #ccc;
 `;
 
+
 function DeviceManagement() {
   const navigate = useNavigate();
   const [devices, setDevices] = useState([]);
@@ -221,7 +222,13 @@ function DeviceManagement() {
   const [saving, setSaving] = useState(false);
   const [soundLevels, setSoundLevels] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
-  const [isFetching, setIsFetching] = useState(false); 
+  const [isFetching, setIsFetching] = useState(false);
+  const [dateSortOrder, setDateSortOrder] = useState("newest");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [timeFilter, setTimeFilter] = useState("1 hour");
+  const [dangerFilter, setDangerFilter] = useState("all");
+  const [sortByDateOrder, setSortByDateOrder] = useState("newest");
 
   useEffect(() => {
     fetchDevices();
@@ -230,10 +237,26 @@ function DeviceManagement() {
   const fetchDevices = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, 'devices'));
-      const deviceList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const deviceList = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          deviceName: data.deviceName || data.name || 'Unnamed Device',
+          deviceId: data.deviceId || data.deviceNumber?.toString() || doc.id,
+          location: data.location || 'No Location',
+          status: data.status || 'Unknown',
+          createdAt: data.createdAt || null,
+          noiseThreshold: data.noiseThreshold || 85,
+          recordDuration: data.recordDuration || 1,
+          samplingPeriod: data.samplingPeriod || 1,
+          macAddress: data.macAddress || '',
+          lastSeen: data.lastSeen || null,
+          lastUpdated: data.lastUpdated || null,
+          locationInfo: data.locationInfo || {},
+          ...data
+        };
+      });
+      console.log('Fetched devices:', deviceList);
       setDevices(deviceList);
     } catch (error) {
       console.error('Error fetching devices:', error);
@@ -241,62 +264,72 @@ function DeviceManagement() {
       setLoading(false);
     }
   };
-  
+
   const handleSettingsClick = (e, deviceId) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     navigate(`/device/${deviceId}/settings`);
   };
 
-  const handleTabChange = (tabName, url) => {
+  const handleTabChange = (tabName) => {
     setActiveTab(tabName);
-    navigate(url);  
   };
-  
+
   const soundLevelsMemoized = useMemo(() => {
     return soundLevels.map((sound) => ({
       ...sound,
       color: sound.level < 70 ? "green" : sound.level <= 85 ? "yellow" : "red",
       formattedDate: new Date(sound.date).toLocaleString(),
     }));
-  }, [soundLevels]); 
+  }, [soundLevels]);
 
   const handleRowClick = (device) => {
     const newExpandedRow = expandedRow === device.id ? null : device.id;
     setExpandedRow(newExpandedRow);
-  
     if (newExpandedRow) {
-      fetchSoundLevels(device.deviceId); 
+      fetchSoundLevels(device.deviceId || device.deviceNumber?.toString());
     }
   };
-  
-  const [dateSortOrder, setDateSortOrder] = useState("newest"); 
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
 
-const handleDateSort = () => {
-  setDateSortOrder(prev => (prev === "newest" ? "oldest" : "newest"));
-};
+  const filteredDevices = devices
+    .filter(device => {
+      const matchStatus = statusFilter === "all" || 
+        (device.status && device.status.toLowerCase() === statusFilter);
+      
+      const deviceName = ((device.deviceName || device.name) || '').toLowerCase();
+      const deviceId = ((device.deviceId || device.deviceNumber?.toString()) || '').toLowerCase();
+      const searchQueryLower = (searchQuery || '').toLowerCase();
+      
+      const matchSearch = deviceName.includes(searchQueryLower) || 
+        deviceId.includes(searchQueryLower);
+      
+      return matchStatus && matchSearch;
+    })
+    .sort((a, b) => {
+      if (statusFilter !== "all") {
+        const statusA = (a.status || '').toLowerCase();
+        const statusB = (b.status || '').toLowerCase();
+        const statusComparison = statusA.localeCompare(statusB);
+        if (statusComparison !== 0) return statusComparison;
+      }
 
-const filteredDevices = devices
-  .filter(device =>
-    statusFilter === "all" || device.status.toLowerCase() === statusFilter
-  )
-  .filter(device =>
-    device.deviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    device.deviceId.toLowerCase().includes(searchQuery.toLowerCase()) 
-  )
-  .sort((a, b) => {
-    if (statusFilter !== "all") {
-      const statusComparison = a.status.localeCompare(b.status);
-      if (statusComparison !== 0) return statusComparison;
-    }
+      const getDate = (device) => {
+        if (device.createdAt) {
+          if (device.createdAt.toDate) {
+            return device.createdAt.toDate();
+          } else if (typeof device.createdAt === 'string') {
+            return new Date(device.createdAt);
+          }
+        }
+        return new Date(0);
+      };
 
-    const dateSort = dateSortOrder === "newest"
-      ? new Date(b.createdAt.toDate()) - new Date(a.createdAt.toDate())
-      : new Date(a.createdAt.toDate()) - new Date(b.createdAt.toDate());
+      const dateA = getDate(a);
+      const dateB = getDate(b);
 
-    return dateSort;
-  });
+      return dateSortOrder === "newest"
+        ? dateB - dateA
+        : dateA - dateB;
+    });
 
   const fetchSoundLevels = async (deviceId) => {
     setIsFetching(true);
@@ -306,7 +339,9 @@ const filteredDevices = devices
       const levels = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        date: new Date(doc.data().date._seconds * 1000).toLocaleString(), 
+        date: doc.data().date?._seconds 
+          ? new Date(doc.data().date._seconds * 1000).toLocaleString()
+          : new Date().toLocaleString(),
       }));
       setSoundLevels(levels);
     } catch (error) {
@@ -315,18 +350,14 @@ const filteredDevices = devices
       setIsFetching(false);
     }
   };
-  
   const handleEditClick = (index, sound) => {
     setEditingIndex(index);
     setEditedData({ ...sound });
-    
   };
   
   const handleChange = (e, field) => {
     setEditedData({ ...editedData, [field]: e.target.value });
   };
-
-  const [sortByDateOrder, setSortByDateOrder] = useState("newest"); 
 
   const handleSortChange = (event) => {
     setSortByDateOrder(event.target.value);
@@ -335,7 +366,6 @@ const filteredDevices = devices
   const handleVerifyChange = async (soundId, newVerifyStatus) => {
     try {
       const soundRef = doc(db, "sounds", soundId);
-      
       const user = auth.currentUser;
       const verifierName = user ? user.displayName || "Unknown User" : "Unknown User";
   
@@ -356,37 +386,19 @@ const filteredDevices = devices
     }
   };
 
-
-  const [timeFilter, setTimeFilter] = useState("1 hour");
-  const [dangerFilter, setDangerFilter] = useState("all"); 
   const filterSoundLevels = useMemo(() => {
     const now = new Date();
     let timeRange = 0;
   
     switch (timeFilter) {
-      case "1 hour":
-        timeRange = 1;
-        break;
-      case "3 hours":
-        timeRange = 3;
-        break;
-      case "7 hours":
-        timeRange = 7;
-        break;
-      case "12 hours":
-        timeRange = 12;
-        break;
-      case "1 day":
-        timeRange = 24;
-        break;
-      case "3 days":
-        timeRange = 72;
-        break;
-      case "7 days":
-        timeRange = 168;
-        break;
-      default:
-        timeRange = 1;
+      case "1 hour": timeRange = 1; break;
+      case "3 hours": timeRange = 3; break;
+      case "7 hours": timeRange = 7; break;
+      case "12 hours": timeRange = 12; break;
+      case "1 day": timeRange = 24; break;
+      case "3 days": timeRange = 72; break;
+      case "7 days": timeRange = 168; break;
+      default: timeRange = 1;
     }
   
     const filteredLevels = soundLevelsMemoized.filter((sound) => {
@@ -402,7 +414,7 @@ const filteredDevices = devices
         ? new Date(b.date) - new Date(a.date)
         : new Date(a.date) - new Date(b.date);
     });
-  }, [soundLevelsMemoized, timeFilter, dangerFilter, sortByDateOrder]); 
+  }, [soundLevelsMemoized, timeFilter, dangerFilter, sortByDateOrder]);
   
   const handleSave = async (soundId) => {
     if (!editedData.level || !editedData.result) {
@@ -440,218 +452,249 @@ const filteredDevices = devices
       <Title>Manage Devices</Title>
       
       <TabContainer>
-        <Tab active={activeTab === 'Devices list'} onClick={() => handleTabChange('Devices list')}>
+        <Tab 
+          active={activeTab === 'Devices list'} 
+          onClick={() => handleTabChange('Devices list')}
+        >
           Devices list
         </Tab>
-        <Tab active={activeTab === 'Add device'} onClick={() => handleTabChange('Add device')}>
+        <Tab 
+          active={activeTab === 'Add device'} 
+          onClick={() => handleTabChange('Add device')}
+        >
           Add device
         </Tab>
       </TabContainer>
 
       <ContentContainer>
-      <FiltersWrapper>
-      <SearchInput 
-        type="text" 
-        placeholder="🔍   Device Name / Device ID" 
-        value={searchQuery} 
-        onChange={(e) => setSearchQuery(e.target.value)} 
-      />
-      <FilterSelect value={dateSortOrder} onChange={handleDateSort}>
-        <option value="newest">Most Recent</option>
-        <option value="oldest">Least Recent</option>
-      </FilterSelect>
-      
-      <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-        <option value="all">All Status</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-      </FilterSelect>
-    </FiltersWrapper>
+        <FiltersWrapper>
+          <SearchInput 
+            type="text" 
+            placeholder="🔍   Device Name / Device ID" 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+          />
+          <FilterSelect 
+            value={dateSortOrder} 
+            onChange={(e) => setDateSortOrder(e.target.value)}
+          >
+            <option value="newest">Most Recent</option>
+            <option value="oldest">Least Recent</option>
+          </FilterSelect>
+          
+          <FilterSelect 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </FilterSelect>
+        </FiltersWrapper>
+
         {activeTab === 'Devices list' && (
           devices.length === 0 ? (
             <NoDevicesMessage>No devices found</NoDevicesMessage>
           ) : (
             <TableContainer>
-            <Table>
-              <thead>
-                <tr>
-                  <Th style={{ width: '20%', textAlign: 'center' }}>Device name</Th>
-                  <Th style={{ width: '8%', textAlign: 'center' }}>Device ID</Th>
-                  <Th style={{ width: '42%' }}>Location</Th>
-                  <Th style={{ width: '10%', textAlign: 'center' }}>Date added</Th>
-                  <Th style={{ width: '12%', textAlign: 'center' }}>Status</Th>
-                  <Th style={{ width: '8%', textAlign: 'center' }}>Setting</Th>
-                </tr>
-              </thead>
-              <tbody>
-              {filteredDevices.map((device) => (
-                  <React.Fragment key={device.id}>
-                    <TableRow onClick={() => handleRowClick(device)}>
-                      <Td style={{ textAlign: 'center' }}>{device.deviceName}</Td>
-                      <Td style={{ textAlign: 'center' }}>{device.deviceId}</Td>
-                      <Td>{device.location}</Td>
-                      <Td style={{ textAlign: 'center' }}>
-                        {device.createdAt ? new Date(device.createdAt.toDate()).toLocaleDateString() : 'N/A'}
-                      </Td>
-                      <Td style={{ textAlign: 'center' }}>
-                        <StatusBadge active={device.status === 'Active'}>
-                          {device.status}
-                        </StatusBadge>
-                      </Td>
-                      <Td style={{ textAlign: 'center' }}>
-                        <SettingsIcon onClick={(e) => handleSettingsClick(e, device.id)} />
-                      </Td>
-                    </TableRow>
-                    {expandedRow === device.id && (
-                      <tr style={{ backgroundColor: '#222222' }}> 
-                        <Td colSpan="6" style={{ padding: '10px' }}>
-                          
-                          <div>
-                            <h2>Sound Levels</h2>
-                            <FiltersWrapper>
-                            <div>
-                            <FilterContainer>
-                            <FilterSelect
-                              value={dangerFilter}
-                              onChange={(e) => setDangerFilter(e.target.value)}
-                              style={{ marginLeft: "10px", padding: "5px" }}
-                            >
-                              <option value="all">Show All Sounds</option>
-                              <option value="danger">Show Only Danger Sounds</option>
-                            </FilterSelect>
-                            </FilterContainer>
-                          </div>
-                            <div>
-                            <FilterContainer>
-                            <FilterSelect
-                              value={timeFilter}
-                              onChange={(e) => setTimeFilter(e.target.value)}
-                              style={{ marginLeft: "10px", padding: "5px" }}
-                            >
-                              <option value="1 hour">Last 1 Hour</option>
-                              <option value="3 hours">Last 3 Hours</option>
-                              <option value="7 hours">Last 7 Hours</option>
-                              <option value="12 hours">Last 12 Hours</option>
-                              <option value="1 day">Last 1 Day</option>
-                              <option value="3 days">Last 3 Days</option>
-                              <option value="7 days">Last 7 Days</option>
-                            </FilterSelect>
-                            </FilterContainer>
-                          </div>
-                          <div>
-                            <FilterContainer>
-                            <FilterSelect value={sortByDateOrder} onChange={handleSortChange}>
-                              <option value="newest">Most Recent</option>
-                              <option value="oldest">Least Recent</option>
-                              </FilterSelect>
-                            </FilterContainer>
-                          </div>
-                          </FiltersWrapper>
-                            {isFetching ? (
-                              <p>Loading sound levels...</p>
-                            ) : soundLevelsMemoized.length === 0 ? (
-                              <p>No sound data available</p>
-                            ) : (
-                              <ScrollableContent>
-                              <ul style={{ padding: 0, listStyle: "none" }}>
-                                {filterSoundLevels.map((sound, index) => (
-                                  <li 
-                                    key={index}
-                                    style={{
-                                      color: sound.color,
-                                      display: "flex",
-                                      alignItems: "center", 
-                                      justifyContent: "space-between", 
-                                      gap: "10px",  
-                                      padding: "2px",
-                                      fontSize: "16px",
-                                      width: "100%",  
-                                      
-                                    }}
-                                  >
-                                    {sound.level > 85 ? (
-                                      <>
-                                        {editingIndex === index ? (
-                                          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                                            <span>{sound.formattedDate} - {sound.level} dB  </span>
-                                            <select
-                                              value={editedData.result || sound.result}
-                                              onChange={(e) => handleChange(e, "result")}
-                                              style={{ width: "120px", padding: "5px" }}
-                                            >
-                                              <option value="Engine">Engine</option>
-                                              <option value="Airplane">Airplane</option>
-                                              <option value="Car">Car</option>
-                                              <option value="Train">Train</option>
-                                              <option value="Car Horn">Car Horn</option>
-                                              <option value="Chainsaw">Chainsaw</option>
-                                              <option value="Drilling">Drilling</option>
-                                              <option value="Handsaw">Handsaw</option>
-                                              <option value="Jackhammer">Jackhammer</option>
-                                              <option value="Street Music">Street Music</option>
-                                              <option value="Other Sounds">Other Sounds</option>
-                                            </select>
-                                            <button 
-                                              onClick={() => handleSave(sound.id)} 
-                                              disabled={saving} 
-                                              style={{ backgroundColor: "#28a745", color: "white", padding: "6px 10px", border: "none", borderRadius: "5px", cursor: "pointer", fontSize: "14px", transition: "0.3s ease-in-out" }}
-                                            >
-                                              {saving ? "Saving..." : "Save"}
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            <span>{sound.formattedDate} - {sound.level} dB </span>
-                                            <span 
-                                                onClick={() => handleEditClick(index, sound)} 
-                                                style={{ cursor: "pointer", textDecoration: "underline" }}
-                                                data-tooltip-id={`tooltip-edit-${index}`}
-                                              >
-                                                {sound.result}
-                                              </span>
-                                            <Tooltip id={`tooltip-edit-${index}`} place="top" content="Edit classification result" />
-                                            <SoundIcon 
-                                              onClick={() => sound.sample ? new Audio(sound.sample).play() : alert("No Audio Available")}
-                                              data-tooltip-id={`tooltip-audio-${sound.id}`}
-                                            >
-                                              🔊
-                                            </SoundIcon>
-
-                                            <Tooltip id={`tooltip-audio-${sound.id}`} place="top" content="Listen to sample audio" />
-                                            <input 
-                                              type="checkbox" 
-                                              checked={sound.verify || false} 
-                                              onChange={() => handleVerifyChange(sound.id, !sound.verify)} 
-                                              style={{ marginLeft: "10px", cursor: "pointer" }}
-                                              data-tooltip-id={`tooltip-${sound.id}`}
-                                            />
-
-                                            <Tooltip 
-                                              id={`tooltip-${sound.id}`} 
-                                              place="top" 
-                                              content={sound.verify ? `Verified by ${sound.verifierName}` : "Verify this noise"} 
-                                            />
-
-                                          </>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <span>{sound.formattedDate} - {sound.level} dB</span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </ScrollableContent>
-                            
-                            )}
-                          </div>
+              <Table>
+                <thead>
+                  <tr>
+                    <Th style={{ width: '20%', textAlign: 'center' }}>Device name</Th>
+                    <Th style={{ width: '8%', textAlign: 'center' }}>Device ID</Th>
+                    <Th style={{ width: '42%' }}>Location</Th>
+                    <Th style={{ width: '10%', textAlign: 'center' }}>Date added</Th>
+                    <Th style={{ width: '12%', textAlign: 'center' }}>Status</Th>
+                    <Th style={{ width: '8%', textAlign: 'center' }}>Setting</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDevices.map((device) => (
+                    <React.Fragment key={device.id}>
+                      <TableRow onClick={() => handleRowClick(device)}>
+                        <Td style={{ textAlign: 'center' }}>
+                          {device.deviceName || device.name || 'Unnamed Device'}
                         </Td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </Table>
+                        <Td style={{ textAlign: 'center' }}>
+                          {device.deviceId || device.deviceNumber || 'No ID'}
+                        </Td>
+                        <Td>{device.location || 'No Location'}</Td>
+                        <Td style={{ textAlign: 'center' }}>
+                          {device.createdAt ? 
+                            (device.createdAt.toDate ? 
+                              device.createdAt.toDate().toLocaleDateString() : 
+                              new Date(device.createdAt).toLocaleDateString()
+                            ) : 'N/A'}
+                        </Td>
+                        <Td style={{ textAlign: 'center' }}>
+                          <StatusBadge active={device.status === 'Active'}>
+                            {device.status || 'Unknown'}
+                          </StatusBadge>
+                        </Td>
+                        <Td style={{ textAlign: 'center' }}>
+                          <SettingsIcon onClick={(e) => handleSettingsClick(e, device.id)} />
+                        </Td>
+                      </TableRow>
+
+                      {expandedRow === device.id && (
+                        <tr style={{ backgroundColor: '#222222' }}> 
+                          <Td colSpan="6" style={{ padding: '10px' }}>
+                            <div>
+                              <h2>Sound Levels</h2>
+                              <FiltersWrapper>
+                                <FilterContainer>
+                                  <FilterSelect
+                                    value={dangerFilter}
+                                    onChange={(e) => setDangerFilter(e.target.value)}
+                                  >
+                                    <option value="all">Show All Sounds</option>
+                                    <option value="danger">Show Only Danger Sounds</option>
+                                  </FilterSelect>
+                                </FilterContainer>
+
+                                <FilterContainer>
+                                  <FilterSelect
+                                    value={timeFilter}
+                                    onChange={(e) => setTimeFilter(e.target.value)}
+                                  >
+                                    <option value="1 hour">Last 1 Hour</option>
+                                    <option value="3 hours">Last 3 Hours</option>
+                                    <option value="7 hours">Last 7 Hours</option>
+                                    <option value="12 hours">Last 12 Hours</option>
+                                    <option value="1 day">Last 1 Day</option>
+                                    <option value="3 days">Last 3 Days</option>
+                                    <option value="7 days">Last 7 Days</option>
+                                  </FilterSelect>
+                                </FilterContainer>
+
+                                <FilterContainer>
+                                  <FilterSelect 
+                                    value={sortByDateOrder} 
+                                    onChange={handleSortChange}
+                                  >
+                                    <option value="newest">Most Recent</option>
+                                    <option value="oldest">Least Recent</option>
+                                  </FilterSelect>
+                                </FilterContainer>
+                              </FiltersWrapper>
+
+                              {isFetching ? (
+                                <p>Loading sound levels...</p>
+                              ) : filterSoundLevels.length === 0 ? (
+                                <p>No sound data available</p>
+                              ) : (
+                                <ScrollableContent>
+                                  <ul style={{ padding: 0, listStyle: "none" }}>
+                                    {filterSoundLevels.map((sound, index) => (
+                                      <li 
+                                        key={index}
+                                        style={{
+                                          color: sound.color,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "space-between",
+                                          gap: "10px",
+                                          padding: "2px",
+                                          fontSize: "16px",
+                                          width: "100%",
+                                        }}
+                                      >
+                                        {sound.level > 85 ? (
+                                          <>
+                                            {editingIndex === index ? (
+                                              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                                                <span>{sound.formattedDate} - {sound.level} dB</span>
+                                                <select
+                                                  value={editedData.result || sound.result}
+                                                  onChange={(e) => handleChange(e, "result")}
+                                                  style={{ width: "120px", padding: "5px" }}
+                                                >
+                                                  <option value="Engine">Engine</option>
+                                                  <option value="Airplane">Airplane</option>
+                                                  <option value="Car">Car</option>
+                                                  <option value="Train">Train</option>
+                                                  <option value="Car Horn">Car Horn</option>
+                                                  <option value="Chainsaw">Chainsaw</option>
+                                                  <option value="Drilling">Drilling</option>
+                                                  <option value="Handsaw">Handsaw</option>
+                                                  <option value="Jackhammer">Jackhammer</option>
+                                                  <option value="Street Music">Street Music</option>
+                                                  <option value="Other Sounds">Other Sounds</option>
+                                                </select>
+                                                <button 
+                                                  onClick={() => handleSave(sound.id)} 
+                                                  disabled={saving}
+                                                  style={{
+                                                    backgroundColor: "#28a745",
+                                                    color: "white",
+                                                    padding: "6px 10px",
+                                                    border: "none",
+                                                    borderRadius: "5px",
+                                                    cursor: "pointer",
+                                                    fontSize: "14px",
+                                                    transition: "0.3s ease-in-out"
+                                                  }}
+                                                >
+                                                  {saving ? "Saving..." : "Save"}
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <>
+                                                <span>{sound.formattedDate} - {sound.level} dB</span>
+                                                <span 
+                                                  onClick={() => handleEditClick(index, sound)}
+                                                  style={{ cursor: "pointer", textDecoration: "underline" }}
+                                                  data-tooltip-id={`tooltip-edit-${index}`}
+                                                >
+                                                  {sound.result}
+                                                </span>
+                                                <Tooltip 
+                                                  id={`tooltip-edit-${index}`} 
+                                                  place="top" 
+                                                  content="Edit classification result" 
+                                                />
+                                                <SoundIcon 
+                                                  onClick={() => sound.sample ? new Audio(sound.sample).play() : alert("No Audio Available")}
+                                                  data-tooltip-id={`tooltip-audio-${sound.id}`}
+                                                >
+                                                  🔊
+                                                </SoundIcon>
+                                                <Tooltip 
+                                                  id={`tooltip-audio-${sound.id}`} 
+                                                  place="top" 
+                                                  content="Listen to sample audio" 
+                                                />
+                                                <input 
+                                                  type="checkbox"
+                                                  checked={sound.verify || false}
+                                                  onChange={() => handleVerifyChange(sound.id, !sound.verify)}
+                                                  style={{ marginLeft: "10px", cursor: "pointer" }}
+                                                  data-tooltip-id={`tooltip-${sound.id}`}
+                                                />
+                                                <Tooltip 
+                                                  id={`tooltip-${sound.id}`}
+                                                  place="top"
+                                                  content={sound.verify ? `Verified by ${sound.verifierName}` : "Verify this noise"}
+                                                />
+                                              </>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span>{sound.formattedDate} - {sound.level} dB</span>
+                                        )}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </ScrollableContent>
+                              )}
+                            </div>
+                          </Td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </Table>
             </TableContainer>
           )
         )}

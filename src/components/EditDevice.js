@@ -4,10 +4,9 @@ import styled from 'styled-components';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
-// SERVER_URL คงที่สำหรับใช้ทั่วทั้งแอป
-const SERVER_URL = 'http://172.20.10.2:5001';
-const DEFAULT_API_KEY = 'test-api-key';
+const SERVER_URL = 'http://192.168.1.137:5001';
 
+// Styled Components (คงเดิม)
 const Container = styled.div`
   background-color: #000000;
   min-height: 100vh;
@@ -167,7 +166,6 @@ const StatusMessage = styled.div`
   border: 1px solid ${props => props.success ? '#4caf50' : '#f44336'};
 `;
 
-// เพิ่ม styled component สำหรับแสดงสถานะ
 const StatusIndicator = styled.div`
   display: inline-block;
   width: 12px;
@@ -189,233 +187,82 @@ const StatusBadge = styled.span`
   margin-left: 1rem;
 `;
 
-// ฟังก์ชันสำหรับส่งการตั้งค่าไปยังอุปกรณ์ผ่าน MQTT
-const sendSettingsToDevice = async (deviceId, settings) => {
+// API Functions
+// API Functions
+const updateDeviceStatus = async (deviceId, newStatus) => {
   try {
-    console.log('Sending settings to device:', deviceId, settings);
+    console.log(`Updating device ${deviceId} status to ${newStatus}`);
     
-    // ใช้ API key เริ่มต้นโดยตรง
-    const apiKey = DEFAULT_API_KEY;
-    console.log('Using API key:', apiKey);
-    
-    const url = `${SERVER_URL}/api/mqtt/publish`;
-    console.log('Sending request to:', url);
-    
-    // แปลงค่าให้เป็นตัวเลขอย่างชัดเจน
-    const payload = {
-      topic: `spl/device/${deviceId}/settings`,
-      payload: {
-        noiseThreshold: parseFloat(settings.noiseThreshold),
-        samplingPeriod: parseInt(settings.samplingPeriod, 10),
-        recordDuration: parseInt(settings.recordDuration, 10),
-        status: settings.status, // เพิ่มสถานะในการส่งข้อมูล
-      },
-    };
-    
-    console.log('Request payload:', JSON.stringify(payload));
-  
-    // ทดลองส่ง API key ในหลายรูปแบบ
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-        'x-api-key': apiKey, // ลองใช้ตัวพิมพ์เล็กทั้งหมด
-      },
-      body: JSON.stringify(payload),
-    });
-  
-    console.log('Response status:', response.status);
-    
-    // อ่านข้อมูลการตอบกลับเป็นข้อความก่อน
-    const responseText = await response.text();
-    console.log('Response text:', responseText);
-  
-    if (!response.ok) {
-      try {
-        const errorData = JSON.parse(responseText);
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || `Failed to send settings to device: ${response.status}`);
-      } catch (parseError) {
-        console.error('Error parsing response:', parseError);
-        throw new Error(`Failed to send settings to device: ${response.status} ${responseText}`);
-      }
-    }
-  
-    try {
-      const responseData = JSON.parse(responseText);
-      console.log('Success response:', responseData);
-      return responseData;
-    } catch (parseError) {
-      console.warn('Response is not JSON, creating default response');
-      return { success: true, message: 'Settings sent to device' };
-    }
-  } catch (error) {
-    console.error('Error sending settings to device:', error);
-    throw error;
-  }
-};
-
-// ทดลองส่ง API key ใน URL แทน
-const sendSettingsToDeviceAlternative = async (deviceId, settings) => {
-  try {
-    console.log('Sending settings to device (alternative method):', deviceId, settings);
-    
-    // ส่ง API key ใน URL
-    const url = `${SERVER_URL}/api/mqtt/publish?apiKey=${DEFAULT_API_KEY}`;
-    console.log('Sending request to:', url);
-    
-    const payload = {
-      topic: `spl/device/${deviceId}/settings`,
-      payload: {
-        noiseThreshold: parseFloat(settings.noiseThreshold),
-        samplingPeriod: parseInt(settings.samplingPeriod, 10),
-        recordDuration: parseInt(settings.recordDuration, 10),
-        status: settings.status, // เพิ่มสถานะในการส่งข้อมูล
-      },
-    };
-    
-    console.log('Request payload:', JSON.stringify(payload));
-  
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-  
-    console.log('Response status:', response.status);
-    
-    const responseText = await response.text();
-    console.log('Response text:', responseText);
-  
-    if (!response.ok) {
-      try {
-        const errorData = JSON.parse(responseText);
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || `Failed to send settings to device: ${response.status}`);
-      } catch (parseError) {
-        console.error('Error parsing response:', parseError);
-        throw new Error(`Failed to send settings to device: ${response.status} ${responseText}`);
-      }
-    }
-  
-    try {
-      const responseData = JSON.parse(responseText);
-      console.log('Success response:', responseData);
-      return responseData;
-    } catch (parseError) {
-      console.warn('Response is not JSON, creating default response');
-      return { success: true, message: 'Settings sent to device' };
-    }
-  } catch (error) {
-    console.error('Error sending settings to device (alternative method):', error);
-    throw error;
-  }
-};
-
-// ทดลองส่งการตั้งค่าโดยตรงไปยังอุปกรณ์ผ่าน API ของเซิร์ฟเวอร์
-const sendSettingsToDeviceDirectly = async (deviceId, settings) => {
-  try {
-    console.log('Sending settings to device directly:', deviceId, settings);
-    
-    const url = `${SERVER_URL}/api/devices/${deviceId}`;
-    console.log('Sending request to:', url);
-    
-    const response = await fetch(url, {
+    const response = await fetch(`${SERVER_URL}/api/devices/${deviceId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': DEFAULT_API_KEY,
-      },
-      body: JSON.stringify({
-        noiseThreshold: parseFloat(settings.noiseThreshold),
-        samplingPeriod: parseInt(settings.samplingPeriod, 10),
-        recordDuration: parseInt(settings.recordDuration, 10),
-        status: settings.status, // เพิ่มสถานะในการส่งข้อมูล
-      }),
-    });
-  
-    console.log('Response status:', response.status);
-    
-    const responseText = await response.text();
-    console.log('Response text:', responseText);
-  
-    if (!response.ok) {
-      try {
-        const errorData = JSON.parse(responseText);
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || `Failed to update device settings: ${response.status}`);
-      } catch (parseError) {
-        console.error('Error parsing response:', parseError);
-        throw new Error(`Failed to update device settings: ${response.status} ${responseText}`);
-      }
-    }
-  
-    try {
-      const responseData = JSON.parse(responseText);
-      console.log('Success response:', responseData);
-      return responseData;
-    } catch (parseError) {
-      console.warn('Response is not JSON, creating default response');
-      return { success: true, message: 'Device settings updated' };
-    }
-  } catch (error) {
-    console.error('Error updating device settings directly:', error);
-    throw error;
-  }
-};
-
-// ฟังก์ชันสำหรับเปลี่ยนสถานะอุปกรณ์
-const toggleDeviceStatus = async (deviceId, newStatus) => {
-  try {
-    console.log(`Changing device status to ${newStatus}`);
-    
-    const url = `${SERVER_URL}/api/devices/${deviceId}/status`;
-    console.log('Sending request to:', url);
-    
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': DEFAULT_API_KEY,
       },
       body: JSON.stringify({
         status: newStatus
       }),
     });
-  
-    console.log('Response status:', response.status);
-    
+
     const responseText = await response.text();
-    console.log('Response text:', responseText);
-  
+    console.log('Status update response:', responseText);
+
     if (!response.ok) {
-      try {
-        const errorData = JSON.parse(responseText);
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || `Failed to change device status: ${response.status}`);
-      } catch (parseError) {
-        console.error('Error parsing response:', parseError);
-        throw new Error(`Failed to change device status: ${response.status} ${responseText}`);
-      }
+      throw new Error(`Failed to update status: ${responseText}`);
     }
-  
+
     try {
-      const responseData = JSON.parse(responseText);
-      console.log('Success response:', responseData);
-      return responseData;
-    } catch (parseError) {
-      console.warn('Response is not JSON, creating default response');
-      return { success: true, message: 'Device status updated' };
+      return JSON.parse(responseText);
+    } catch (e) {
+      return { success: true, message: 'Status updated' };
     }
   } catch (error) {
-    console.error('Error changing device status:', error);
+    console.error('Error updating device status:', error);
     throw error;
   }
 };
 
+const updateDeviceSettings = async (deviceId, settings) => {
+  try {
+    console.log(`Updating device ${deviceId} settings:`, settings);
+    
+    // อัพเดท Firestore ก่อน
+    const deviceRef = doc(db, 'devices', deviceId);
+    await updateDoc(deviceRef, {
+      ...settings,
+      updatedAt: new Date().toISOString()
+    });
+    console.log('Firestore updated successfully');
+
+    // ส่งการตั้งค่าไปที่ server
+    const response = await fetch(`${SERVER_URL}/api/devices/${deviceId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        noiseThreshold: settings.noiseThreshold,
+        samplingPeriod: settings.samplingPeriod,
+        recordDuration: settings.recordDuration
+      }),
+    });
+
+    const responseText = await response.text();
+    console.log('Settings update response:', responseText);
+
+    if (!response.ok) {
+      throw new Error(`Failed to update settings: ${responseText}`);
+    }
+
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      return { success: true, message: 'Settings updated' };
+    }
+  } catch (error) {
+    console.error('Error updating device settings:', error);
+    throw error;
+  }
+};
 // Main Component
 function EditDevice() {
   const { id } = useParams();
@@ -432,53 +279,46 @@ function EditDevice() {
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ show: false, success: false, message: '' });
 
-  // Load device data
-  const loadDeviceData = async () => {
-    try {
-      console.log('Loading device data for ID:', id);
-      const docRef = doc(db, 'devices', id);
-      const docSnap = await getDoc(docRef);
+  useEffect(() => {
+    const loadDeviceData = async () => {
+      try {
+        console.log('Loading device data for ID:', id);
+        const deviceRef = doc(db, 'devices', id);
+        const deviceSnap = await getDoc(deviceRef);
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        console.log('Device data loaded:', data);
-        
-        const status = data.status || 'Inactive';
-        setInitialStatus(status);
-        
-        setFormData({
-          deviceName: data.deviceName || '',
-          noiseThreshold: data.noiseThreshold || 85,
-          samplingPeriod: data.samplingPeriod || 2,
-          recordDuration: data.recordDuration || 4,
-          status: status,
-        });
-      } else {
-        console.error('Device not found in Firestore');
+        if (deviceSnap.exists()) {
+          const data = deviceSnap.data();
+          console.log('Device data loaded:', data);
+          
+          const status = data.status || 'Inactive';
+          setInitialStatus(status);
+          
+          setFormData({
+            deviceName: data.deviceName || '',
+            noiseThreshold: data.noiseThreshold || 85,
+            samplingPeriod: data.samplingPeriod || 2,
+            recordDuration: data.recordDuration || 4,
+            status: status,
+          });
+        } else {
+          throw new Error('Device not found');
+        }
+      } catch (error) {
+        console.error('Error loading device:', error);
         setStatusMessage({
           show: true,
           success: false,
-          message: 'Device not found'
+          message: error.message
         });
         setTimeout(() => navigate('/dashboard'), 2000);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching device:', error);
-      setStatusMessage({
-        show: true,
-        success: false,
-        message: 'Failed to load device data: ' + error.message
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  useEffect(() => {
     if (id) {
       loadDeviceData();
     } else {
-      console.error('No device ID provided');
       setStatusMessage({
         show: true,
         success: false,
@@ -488,92 +328,46 @@ function EditDevice() {
     }
   }, [id, navigate]);
 
-  // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       [name]: value,
     }));
   };
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     setStatusMessage({ show: false, success: false, message: '' });
-  
+
     try {
       console.log('Submitting form data:', formData);
-    
-      // 1. อัปเดตข้อมูลใน Firestore
-      const docRef = doc(db, 'devices', id);
-      await updateDoc(docRef, {
+
+      // 1. Update device settings
+      const settingsData = {
         deviceName: formData.deviceName,
         noiseThreshold: parseFloat(formData.noiseThreshold),
         samplingPeriod: parseInt(formData.samplingPeriod, 10),
         recordDuration: parseInt(formData.recordDuration, 10),
-        status: formData.status,
-        updatedAt: new Date().toISOString()
-      });
-      console.log('Firestore updated successfully');
-      
-      // 2. ตรวจสอบว่าสถานะเปลี่ยนแปลงหรือไม่
+        status: formData.status
+      };
+
+      await updateDeviceSettings(id, settingsData);
+      console.log('Settings updated successfully');
+
+      // 2. Update status if changed
       if (formData.status !== initialStatus) {
-        console.log(`Device status changed from ${initialStatus} to ${formData.status}`);
-        
-        // เปลี่ยนสถานะอุปกรณ์
-        await toggleDeviceStatus(id, formData.status);
-        console.log('Device status updated on server');
+        await updateDeviceStatus(id, formData.status);
+        console.log('Status updated successfully');
       }
-    
-      // 3. ส่งการตั้งค่าไปยังอุปกรณ์ (ลองหลายวิธี)
-      let settingsResponse;
-      let successMethod = '';
-      
-      try {
-        // วิธีที่ 1: ส่งผ่าน MQTT โดยตรง
-        settingsResponse = await sendSettingsToDevice(id, {
-          noiseThreshold: formData.noiseThreshold,
-          samplingPeriod: formData.samplingPeriod,
-          recordDuration: formData.recordDuration,
-          status: formData.status,
-        });
-        successMethod = 'MQTT direct';
-      } catch (error1) {
-        console.warn('First method failed:', error1);
-        
-        try {
-          // วิธีที่ 2: ส่ง API key ใน URL
-          settingsResponse = await sendSettingsToDeviceAlternative(id, {
-            noiseThreshold: formData.noiseThreshold,
-            samplingPeriod: formData.samplingPeriod,
-            recordDuration: formData.recordDuration,
-            status: formData.status,
-          });
-          successMethod = 'MQTT with URL API key';
-        } catch (error2) {
-          console.warn('Second method failed:', error2);
-          
-          // วิธีที่ 3: อัปเดตการตั้งค่าโดยตรงผ่าน API
-          settingsResponse = await sendSettingsToDeviceDirectly(id, {
-            noiseThreshold: formData.noiseThreshold,
-            samplingPeriod: formData.samplingPeriod,
-            recordDuration: formData.recordDuration,
-            status: formData.status,
-          });
-          successMethod = 'Direct API update';
-        }
-      }
-    
-      console.log(`Device settings updated via ${successMethod}:`, settingsResponse);
-    
+
       setStatusMessage({
         show: true,
         success: true,
-        message: `Device updated successfully and settings applied to device via ${successMethod}`
+        message: 'Device updated successfully'
       });
-    
+
       setTimeout(() => {
         navigate(`/device/${id}/settings`);
       }, 1500);
@@ -582,7 +376,7 @@ function EditDevice() {
       setStatusMessage({
         show: true,
         success: false,
-        message: 'Failed to update device: ' + error.message
+        message: error.message
       });
     } finally {
       setIsSaving(false);

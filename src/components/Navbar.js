@@ -518,10 +518,10 @@ function Navbar() {
         <MenuItem 
           href="/mydevice" 
           active={currentPath === '/mydevice'}
-          onClick={handleMenuClick('/mydevice')}
+          onClick={handleMenuClick('/mydevices')}
         >
           <FaServer />
-          <span>My Device</span>
+          <span>My Devices</span>
         </MenuItem>
       </Sidebar>
 
