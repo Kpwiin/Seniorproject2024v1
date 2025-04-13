@@ -175,8 +175,19 @@ const CurrentSoundLevel = ({ deviceId }) => {
             </span>
           </p>
           
-          <div className="audio-container">
-            <p><strong>Sample:</strong></p>
+          {highestLevelToday !== null && (
+            <p className="highest-today">
+              <strong>Highest Level Today:</strong>
+              <span style={{ color: noiseStatus.color }}> {highestLevelToday} dB</span>
+            </p>
+          )}
+        </div>
+      ) : (
+        <p>Loading latest sound level...</p>
+      )}
+        <div className="audio-container">
+        <h4 class="sample-heading">Audio Sample:</h4>
+
             {audioUrl ? (
               <>
                 <audio 
@@ -184,6 +195,7 @@ const CurrentSoundLevel = ({ deviceId }) => {
                   onPlay={handlePlayAudio}
                   onPause={handlePauseAudio}
                   onError={handleAudioError}
+                  style={{ width: '550px', height: '40px' }}
                 >
                   <source src={audioUrl} type="audio/wav" />
                   Your browser does not support the audio element.
@@ -204,16 +216,6 @@ const CurrentSoundLevel = ({ deviceId }) => {
               </p>
             )}
           </div>
-
-          {highestLevelToday !== null && (
-            <p className="highest-today">
-              <strong>Highest Level Today:</strong> {highestLevelToday} dB
-            </p>
-          )}
-        </div>
-      ) : (
-        <p>Loading latest sound level...</p>
-      )}
     </div>
   );
 };

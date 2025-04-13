@@ -16,6 +16,7 @@ export const History = ({ deviceId }) => {
   const [loadCount, setLoadCount] = useState(7);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedResults, setSelectedResults] = useState([]);
+  const [selectedAudioUrls, setSelectedAudioUrls] = useState([]);
 
   useEffect(() => {
     const fetchHistoryData = async () => {
@@ -31,7 +32,7 @@ export const History = ({ deviceId }) => {
             const noiseLevel = docData.level;
             const dateKey = timestamp.toLocaleDateString('en-US');
             const result = docData.result;
-
+            const audioUrl = docData.audioUrl;
             if (!dayDataMap.has(dateKey)) {
               dayDataMap.set(dateKey, {
                 total: 0,
@@ -47,6 +48,8 @@ export const History = ({ deviceId }) => {
             dayDataMap.get(dateKey).levels.push(noiseLevel);
             dayDataMap.get(dateKey).timestamps.push(timestamp);
             dayDataMap.get(dateKey).results.push(result);
+            dayDataMap.get(dateKey).audioUrls = dayDataMap.get(dateKey).audioUrls || [];
+            dayDataMap.get(dateKey).audioUrls.push(audioUrl);
           }
         });
 
@@ -60,6 +63,7 @@ export const History = ({ deviceId }) => {
             noiseLevels: value.levels,
             timestamps: value.timestamps,
             results: value.results,
+            audioUrls: value.audioUrls,
           });
         });
 
@@ -269,13 +273,15 @@ export const History = ({ deviceId }) => {
                   timestamp,
                   level: item.noiseLevels[index],
                   result: item.results[index],
+                  audioUrl: item.audioUrls[index],
                 }))
                 .sort((a, b) => a.timestamp - b.timestamp);
-
+              
               const sortedTimestamps = sortedData.map((data) => data.timestamp);
               const sortedLevels = sortedData.map((data) => data.level);
               const sortedResults = sortedData.map((data) => data.result);
-
+              const sortedAudioUrls = sortedData.map((data) => data.audioUrl);
+              setSelectedAudioUrls(sortedAudioUrls);
               setSelectedLevels(sortedLevels);
               setSelectedTimestamps(sortedTimestamps);
               setSelectedIndex(index);
@@ -333,16 +339,36 @@ export const History = ({ deviceId }) => {
                   <ul>
                     {selectedLevels.map((level, idx) => {
                       if (level > 85) {
+                        const audioUrl = selectedAudioUrls?.[idx]; 
                         return (
                           <li key={idx}>
-                            <span>
-                              {selectedTimestamps[idx].toLocaleTimeString('en-US', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: false,
-                              })}
-                            </span>
-                             {level} dB - Source: <strong> {selectedResults[idx] || 'N/A'} </strong>
+                            {/* First Block: Time and Level */}
+                            <div style={{ marginBottom: '2px' }}>
+                              <span>
+                                {selectedTimestamps[idx].toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false,
+                                })}
+                              </span> - {level} dB
+                            </div>
+
+                            {/* Second Block: Result and Audio */}
+                            <div style={{ marginTop: '2px' }}>
+                              <strong>Source: {selectedResults[idx] || 'N/A'}</strong>
+                            </div>
+                             
+                              {audioUrl ? (
+                                <div style={{ marginTop: '10px' }}>
+                                  <audio controls style={{ width: '300px', height: '30px' }}>
+                                    <source src={audioUrl} type="audio/mpeg" />
+                                    Your browser does not support the audio element.
+                                  </audio>
+                                </div>
+                              ) : (
+                                <span>No Audio Available</span>
+                              )}
+                            
                           </li>
                         );
                       }

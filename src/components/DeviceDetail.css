@@ -209,8 +209,7 @@ html, body {
   padding: 40px;
 }
 
-.all-day-sound-levels li,
-.high-noise-events li {
+.all-day-sound-levels li{
   padding: 10px;
   margin-bottom: 10px;
   background-color: #333;
@@ -223,6 +222,19 @@ html, body {
   font-size: 0.95rem;
 }
 
+.high-noise-events li {
+  max-width: fit-content;
+  padding: 10px;
+  margin-bottom: 10px;
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 0.95rem;
+  display: flex;
+  flex-direction: column; 
+}
+
 .current-sound-level {
   font-size: 1.4rem;
 }
@@ -233,7 +245,7 @@ html, body {
   gap: 40px;
 }
 
-.current, .source, .status, .no-audio {
+.current, .source, .status, .highest-today {
   width: auto; /* Automatically adjust the width based on content */
   max-width: 3000px;
   background: linear-gradient(135deg, #2e2e2e, #1f1f1f);
@@ -243,6 +255,23 @@ html, body {
   background-clip: padding-box;
   color: #dcdcdc; /* Light text color for contrast */
   display: inline-block; /* Allow the block to wrap around the text */
+}
+
+.audio-container{
+  width: 700px;
+  max-width: 3000px;
+  padding: 20px;
+  margin: 30px;
+  border-radius: 12px;
+  border-color: #343434;
+  background-clip: padding-box;
+  color: #dcdcdc; /* Light text color for contrast */
+  display: inline-block; /* Allow the block to wrap around the text */
+  background: linear-gradient(135deg, #2e2e2e, #1f1f1f);
+}
+
+.sample-heading {
+  margin-bottom: 16px;
 }
 
 .DeNav h2 {
@@ -292,5 +321,6 @@ nav ul li a:hover {
 #current {
   scroll-margin-top: 100px; 
 }
+
 
 

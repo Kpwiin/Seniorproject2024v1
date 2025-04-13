@@ -224,6 +224,7 @@ function MyDevice() {
   const [soundLevels, setSoundLevels] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
   const [isFetching, setIsFetching] = useState(false); 
+  
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -630,11 +631,25 @@ const filteredDevices = devices
                                                 {sound.result}
                                               </span>
                                             <Tooltip id={`tooltip-edit-${index}`} place="top" content="Edit classification result" />
-                                            <SoundIcon 
-                                              onClick={() => sound.sample ? new Audio(sound.sample).play() : alert("No Audio Available")}
+                                            <SoundIcon
+                                              onClick={() => {
+                                                if (sound.audioUrl) {
+                                                  const audio = new Audio(sound.audioUrl);
+                                                  audio.play();
+                                                } else {
+                                                  alert("No Audio Available");
+                                                }
+                                              }}
                                               data-tooltip-id={`tooltip-audio-${sound.id}`}
                                             >
-                                              🔊
+                                              {sound.audioUrl ? (
+                                                <audio controls style={{ width: '300px', height: '20px' }}>
+                                                  <source src={sound.audioUrl} type="audio/mpeg" />
+                                                  Your browser does not support the audio element.
+                                                </audio>
+                                              ) : (
+                                                <span>No Audio Available</span>
+                                              )}
                                             </SoundIcon>
 
                                             <Tooltip id={`tooltip-audio-${sound.id}`} place="top" content="Listen to sample audio" />

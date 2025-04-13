@@ -654,17 +654,25 @@ function DeviceManagement() {
                                                   content="Edit classification result" 
                                                 />
                                                <SoundIcon
-  onClick={() => {
-    if (sound.audioUrl) {
-      new Audio(sound.audioUrl).play();
-    } else {
-      alert("No Audio Available");
-    }
-  }}
-  data-tooltip-id={`tooltip-audio-${sound.id}`}
->
-  🔊
-</SoundIcon>
+                                              onClick={() => {
+                                                if (sound.audioUrl) {
+                                                  const audio = new Audio(sound.audioUrl);
+                                                  audio.play();
+                                                } else {
+                                                  alert("No Audio Available");
+                                                }
+                                              }}
+                                              data-tooltip-id={`tooltip-audio-${sound.id}`}
+                                            >
+                                              {sound.audioUrl ? (
+                                                <audio controls style={{ width: '300px', height: '20px' }}>
+                                                  <source src={sound.audioUrl} type="audio/mpeg" />
+                                                  Your browser does not support the audio element.
+                                                </audio>
+                                              ) : (
+                                                <span>No Audio Available</span>
+                                              )}
+                                            </SoundIcon>
                                                 <Tooltip 
                                                   id={`tooltip-audio-${sound.id}`} 
                                                   place="top" 
