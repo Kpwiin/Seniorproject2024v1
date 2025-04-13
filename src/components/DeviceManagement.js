@@ -653,12 +653,18 @@ function DeviceManagement() {
                                                   place="top" 
                                                   content="Edit classification result" 
                                                 />
-                                                <SoundIcon 
-                                                  onClick={() => sound.sample ? new Audio(sound.sample).play() : alert("No Audio Available")}
-                                                  data-tooltip-id={`tooltip-audio-${sound.id}`}
-                                                >
-                                                  🔊
-                                                </SoundIcon>
+                                               <SoundIcon
+  onClick={() => {
+    if (sound.audioUrl) {
+      new Audio(sound.audioUrl).play();
+    } else {
+      alert("No Audio Available");
+    }
+  }}
+  data-tooltip-id={`tooltip-audio-${sound.id}`}
+>
+  🔊
+</SoundIcon>
                                                 <Tooltip 
                                                   id={`tooltip-audio-${sound.id}`} 
                                                   place="top" 

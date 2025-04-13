@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
-const SERVER_URL = 'http://192.168.1.137:5001';
+const SERVER_URL = 'http://192.168.1.101:5001';
 
 // Styled Components (คงเดิม)
 const Container = styled.div`

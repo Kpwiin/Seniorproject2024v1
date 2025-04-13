@@ -316,7 +316,7 @@ function Navbar() {
         // Start fetching notifications
         const notificationInterval = setInterval(() => {
           fetchNotifications();
-        }, 6000); // Adjust the interval 1 min
+        }, 60000); // Adjust the interval 1 min
   
         return () => clearInterval(notificationInterval); 
       } else {

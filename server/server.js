@@ -3,8 +3,6 @@ const cors = require('cors');
 const mqtt = require('mqtt');
 const crypto = require('crypto');
 const multer = require('multer');
-const fs = require('fs');
-const fsPromises = require('fs').promises;
 const path = require('path');
 const admin = require('firebase-admin');
 const { promisify } = require('util');
@@ -12,6 +10,7 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { getFirestore } = require('firebase-admin/firestore');
 const app = express();
+
 const class_labels = [
     'Engine', 
     'Car Horn', 
@@ -23,24 +22,14 @@ const class_labels = [
     'Others'
 ];
 
-// สร้างโฟลเดอร์ recordings และ uploads
-const recordingsDir = path.join(__dirname, 'recordings');
-const uploadDir = path.join(__dirname, 'uploads');
-
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-if (!fs.existsSync(recordingsDir)) {
-    fs.mkdirSync(recordingsDir, { recursive: true });
-}
-
 // เชื่อมต่อกับ Firebase
 const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount),
+    storageBucket: 'noise-monitoring-system-5c950.firebasestorage.app'  // ใช้ URL นี้
 });
-
+const bucket = admin.storage().bucket();
 const db = admin.firestore();
 
 // Middleware
@@ -55,17 +44,8 @@ const apiKeys = new Set([defaultApiKey]);
 const devices = {};
 const latestMessages = {};
 
-// ตั้งค่าการเก็บไฟล์
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const deviceId = req.params.deviceId || 'unknown';
-        cb(null, `${deviceId}_${Date.now()}${path.extname(file.originalname) || '.wav'}`);
-    }
-});
-
+// ตั้งค่า multer สำหรับการอัพโหลดไฟล์
+const storage = multer.memoryStorage();
 const upload = multer({ 
     storage: storage,
     fileFilter: (req, file, cb) => {
@@ -122,12 +102,6 @@ async function predictNoiseWithFlaskAPI(audioBuffer) {
 
         const sortedPredictions = predictions.sort((a, b) => b.probability - a.probability);
 
-        console.log('Prediction result:', {
-            class: predictedClass,
-            probability: mainProbability,
-            allPredictions: sortedPredictions
-        });
-
         return {
             class: predictedClass,
             probability: mainProbability,
@@ -144,6 +118,52 @@ async function predictNoiseWithFlaskAPI(audioBuffer) {
     }
 }
 
+// เพิ่มฟังก์ชันตรวจสอบการเชื่อมต่อ
+async function checkStorageConnection() {
+    try {
+        console.log('Checking storage connection...');
+        console.log('Bucket name:', bucket.name);
+        const [exists] = await bucket.exists();
+        console.log('Bucket exists:', exists);
+        const [files] = await bucket.getFiles();
+        console.log('Number of files in bucket:', files.length);
+    } catch (error) {
+        console.error('Storage connection error:', error);
+    }
+}
+
+// เรียกใช้ตอนเริ่มต้นเซิร์ฟเวอร์
+checkStorageConnection();
+
+// เพิ่มฟังก์ชันตรวจสอบไฟล์ WAV
+function validateWavFile(buffer) {
+    try {
+        // ตรวจสอบว่าเป็นไฟล์ WAV จริงหรือไม่
+        if (buffer.length < 44) { // WAV header มีขนาด 44 bytes
+            console.error('Invalid WAV file: too small');
+            return false;
+        }
+
+        // ตรวจสอบ RIFF header
+        if (buffer.toString('ascii', 0, 4) !== 'RIFF') {
+            console.error('Invalid WAV file: missing RIFF header');
+            return false;
+        }
+
+        // ตรวจสอบ WAVE format
+        if (buffer.toString('ascii', 8, 12) !== 'WAVE') {
+            console.error('Invalid WAV file: missing WAVE format');
+            return false;
+        }
+
+        console.log('WAV file validation passed');
+        return true;
+    } catch (error) {
+        console.error('Error validating WAV file:', error);
+        return false;
+    }
+}
+
 async function getOrCreateDeviceId(macAddress) {
     try {
         const cleanMacAddress = macAddress.replace(/:/g, '').toLowerCase();
@@ -154,9 +174,7 @@ async function getOrCreateDeviceId(macAddress) {
 
         if (!snapshot.empty) {
             const device = snapshot.docs[0];
-            const deviceId = device.id;
-            console.log(`Found existing device with MAC ${cleanMacAddress}, ID: ${deviceId}`);
-            return deviceId;
+            return device.id;
         }
 
         const allDevicesSnapshot = await devicesRef.orderBy('deviceNumber', 'desc').limit(1).get();
@@ -177,7 +195,6 @@ async function getOrCreateDeviceId(macAddress) {
             lastSeen: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        console.log(`Created new device with MAC ${cleanMacAddress}, ID: ${newDeviceId}`);
         return newDeviceId;
     } catch (error) {
         console.error('Error in getOrCreateDeviceId:', error);
@@ -210,51 +227,6 @@ async function getNextDocumentId(collectionName) {
     }
 }
 
-// Middleware
-const validateApiKey = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'] || req.query.apiKey;
-    console.log('Received API Key:', apiKey);
-    
-    if (!apiKey) {
-        return res.status(401).json({ error: 'API key is missing' });
-    }
-    
-    if (!apiKeys.has(apiKey)) {
-        return res.status(401).json({ error: 'Invalid API key' });
-    }
-    
-    next();
-};
-
-const validateDeviceStatus = async (req, res, next) => {
-    try {
-        const deviceId = req.params.deviceId || req.body.deviceId;
-        
-        if (!deviceId) {
-            return res.status(400).json({ error: 'Device ID is required' });
-        }
-        
-        const deviceRef = db.collection('devices').doc(deviceId);
-        const deviceDoc = await deviceRef.get();
-        
-        if (!deviceDoc.exists) {
-            return res.status(404).json({ error: 'Device not found' });
-        }
-        
-        const deviceData = deviceDoc.data();
-        
-        if (deviceData.status !== 'Active') {
-            return res.status(403).json({ error: 'Device is inactive' });
-        }
-        
-        req.deviceData = deviceData;
-        next();
-    } catch (error) {
-        console.error('Error validating device status:', error);
-        res.status(500).json({ error: 'Failed to validate device status' });
-    }
-};
-
 // API Endpoints
 app.post('/api/recordings/upload/:deviceId', async (req, res) => {
     try {
@@ -272,6 +244,9 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
             });
         }
 
+        // ดึงค่า threshold จาก device document หรือใช้ค่าเริ่มต้น (85)
+        const noiseThreshold = deviceDoc.data().noiseThreshold || 85;
+
         let chunks = [];
         req.on('data', chunk => {
             chunks.push(chunk);
@@ -282,23 +257,66 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
                 const audioBuffer = Buffer.concat(chunks);
                 console.log('Received audio file size:', audioBuffer.length);
 
-                // สร้างโฟลเดอร์สำหรับแต่ละอุปกรณ์
-                const deviceDir = path.join(recordingsDir, deviceId);
-                await fsPromises.mkdir(deviceDir, { recursive: true });
+                if (audioBuffer.length === 0) {
+                    throw new Error('Empty audio file');
+                }
 
-                // สร้างชื่อไฟล์และ path
+                // ตรวจสอบความถูกต้องของไฟล์ WAV
+                if (!validateWavFile(audioBuffer)) {
+                    throw new Error('Invalid WAV file format');
+                }
+
                 const timestamp = admin.firestore.Timestamp.now();
-                const filename = `${timestamp.seconds}_${timestamp.nanoseconds}.wav`;
-                const filepath = path.join(deviceDir, filename);
+                
+                // ตรวจสอบว่ามีการอัปโหลดไฟล์เสียงไปแล้วหรือยัง (เพิ่มช่วงเวลา)
+                const existingSoundSnapshot = await db.collection('sounds')
+                    .where('deviceId', '==', deviceId)
+                    .where('date._seconds', '>=', timestamp.seconds - 5)
+                    .where('date._seconds', '<=', timestamp.seconds + 5)
+                    .get();
 
-                // บันทึกไฟล์
-                await fsPromises.writeFile(filepath, audioBuffer);
+                if (!existingSoundSnapshot.empty) {
+                    console.log('Sound data for this timestamp already exists. Skipping upload.');
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Sound data already exists. Skipping upload.'
+                    });
+                }
+
+                // ตรวจสอบค่า SPL กับ threshold
+                if (parseFloat(spl_value) <= noiseThreshold) {
+                    // ถ้าค่าไม่เกิน threshold จะไม่บันทึกเลย (เพราะจะให้ MQTT ทำงานส่วนนี้แทน)
+                    return res.status(200).json({
+                        success: true,
+                        message: 'SPL value below threshold. No recording saved.'
+                    });
+                }
+
+                // ถ้าค่า SPL เกิน threshold จึงทำการบันทึกไฟล์และข้อมูล
+                let filename = `recordings/${deviceId}/${timestamp.seconds}_${timestamp.nanoseconds}.wav`;
+                const file = bucket.file(filename);
+                
+                // อัพโหลดไฟล์ไปยัง Cloud Storage
+                await file.save(audioBuffer, {
+                    metadata: {
+                        contentType: 'audio/wav',
+                        metadata: {
+                            deviceId: deviceId,
+                            timestamp: timestamp.seconds
+                        }
+                    }
+                });
+
+                // ตั้งค่าให้ไฟล์เป็น public
+                await file.makePublic();
+                const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+                console.log('Public URL:', publicUrl);
 
                 // ทำนายประเภทเสียง
-                console.log('Predicting noise type...');
                 const prediction = await predictNoiseWithFlaskAPI(audioBuffer);
-                console.log('Prediction result:', prediction);
+                const predictionResult = prediction.class;
 
+                // สร้างข้อมูลเสียงที่จะบันทึก (แบบเต็ม)
                 const soundData = {
                     deviceId: deviceId,
                     level: parseFloat(spl_value),
@@ -306,45 +324,62 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
                         _seconds: timestamp.seconds,
                         _nanoseconds: timestamp.nanoseconds
                     },
-                    audioPath: filepath,
-                    result: prediction.class,
-                    macAddress: deviceDoc.data().macAddress
+                    macAddress: deviceDoc.data().macAddress,
+                    audioUrl: publicUrl,
+                    storagePath: filename,
+                    result: predictionResult
                 };
 
                 const nextDocId = await getNextDocumentId('sounds');
                 const soundRef = db.collection('sounds').doc(nextDocId);
                 await soundRef.set(soundData);
 
+                // อัพเดทข้อมูลอุปกรณ์
                 await deviceRef.update({
                     lastSeen: admin.firestore.FieldValue.serverTimestamp(),
                     lastSPLValue: parseFloat(spl_value),
-                    lastResults: prediction.class,
-                    lastRecordingId: nextDocId
+                    lastResults: predictionResult,
+                    lastRecordingId: nextDocId,
+                    lastAudioUrl: publicUrl
                 });
 
-                const mqttTopic = `spl/device/${deviceId}/prediction`;
-                const mqttMessage = JSON.stringify({
+                // ส่งข้อมูลผ่าน MQTT
+                const mqttData = {
                     device_id: deviceId,
                     recording_id: nextDocId,
                     spl_value: parseFloat(spl_value),
-                    results: prediction.class,
-                    timestamp: Date.now()
-                });
-
-                mqttClient.publish(mqttTopic, mqttMessage);
-
-                console.log(`Successfully saved recording with ID: ${nextDocId}`);
-                console.log('Result:', prediction.class);
+                    timestamp: Date.now(),
+                    results: predictionResult,
+                    audio_url: publicUrl
+                };
+                
+                const mqttTopic = `spl/device/${deviceId}/prediction`;
+                mqttClient.publish(mqttTopic, JSON.stringify(mqttData));
 
                 res.json({
                     success: true,
-                    message: 'Recording uploaded and processed successfully',
+                    message: 'Recording processed successfully',
                     recordingId: nextDocId,
-                    results: prediction.class
+                    level: parseFloat(spl_value),
+                    results: predictionResult,
+                    audioUrl: publicUrl
                 });
 
             } catch (error) {
                 console.error('Error processing upload:', error);
+                // ถ้าเกิด error ให้ลบไฟล์ที่อัพโหลดไปแล้ว (ถ้ามี)
+                if (filename) {
+                    try {
+                        const file = bucket.file(filename);
+                        const [exists] = await file.exists();
+                        if (exists) {
+                            await file.delete();
+                        }
+                    } catch (deleteError) {
+                        console.error('Error deleting failed upload:', deleteError);
+                    }
+                }
+
                 res.status(500).json({
                     success: false,
                     message: 'Failed to process upload',
@@ -362,11 +397,10 @@ app.post('/api/recordings/upload/:deviceId', async (req, res) => {
     }
 });
 
-// เพิ่ม endpoint สำหรับดาวน์โหลดไฟล์เสียง
 app.get('/api/recordings/:recordingId/download', async (req, res) => {
     try {
         const { recordingId } = req.params;
-        
+
         const soundRef = db.collection('sounds').doc(recordingId);
         const soundDoc = await soundRef.get();
 
@@ -378,26 +412,36 @@ app.get('/api/recordings/:recordingId/download', async (req, res) => {
         }
 
         const soundData = soundDoc.data();
-        const filepath = soundData.audioPath;
 
-        try {
-            await fsPromises.access(filepath);
-        } catch (error) {
+        if (!soundData.storagePath) {
             return res.status(404).json({
                 success: false,
-                message: 'Audio file not found'
+                message: 'No storage path found for this recording'
             });
         }
 
-        res.download(filepath, path.basename(filepath), (err) => {
-            if (err) {
-                console.error('Error downloading file:', err);
-                res.status(500).json({
-                    success: false,
-                    message: 'Failed to download file'
-                });
-            }
+        const file = bucket.file(soundData.storagePath);
+        const [exists] = await file.exists();
+
+        if (!exists) {
+            return res.status(404).json({
+                success: false,
+                message: 'Audio file not found in storage'
+            });
+        }
+
+        // ตั้งค่าให้ไฟล์เป็น public (ถ้ายังไม่ได้ตั้งค่า)
+        await file.makePublic();
+
+        // สร้าง URL แบบ public
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${soundData.storagePath}`;
+
+        await soundRef.update({
+            audioUrl: publicUrl,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
+
+        res.redirect(publicUrl);
 
     } catch (error) {
         console.error('Error getting recording:', error);
@@ -409,7 +453,49 @@ app.get('/api/recordings/:recordingId/download', async (req, res) => {
     }
 });
 
-// แก้ไข endpoint สำหรับอัพเดตการตั้งค่า
+app.delete('/api/recordings/:recordingId', async (req, res) => {
+    try {
+        const { recordingId } = req.params;
+
+        const soundRef = db.collection('sounds').doc(recordingId);
+        const soundDoc = await soundRef.get();
+
+        if (!soundDoc.exists) {
+            return res.status(404).json({
+                success: false,
+                message: 'Recording not found'
+            });
+        }
+
+        const soundData = soundDoc.data();
+
+        if (soundData.storagePath) {
+            const file = bucket.file(soundData.storagePath);
+            const [exists] = await file.exists();
+            if (exists) {
+                await file.delete();
+            }
+        }
+
+        await soundRef.delete();
+
+        res.json({
+            success: true,
+            message: 'Recording deleted successfully',
+            recordingId: recordingId
+        });
+
+    } catch (error) {
+        console.error('Error deleting recording:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete recording',
+            error: error.message
+        });
+    }
+});
+
+// Device Management Endpoints
 app.put('/api/devices/:deviceId', async (req, res) => {
     try {
         const { deviceId } = req.params;
@@ -458,66 +544,10 @@ app.put('/api/devices/:deviceId', async (req, res) => {
     }
 });
 
-// อัพเดตสถานะอุปกรณ์
-app.put('/api/devices/:deviceId/status', async (req, res) => {
-    try {
-        const { deviceId } = req.params;
-        const { status } = req.body;
-
-        console.log('Updating device status:', { deviceId, status });
-
-        if (!status) {
-            return res.status(400).json({
-                success: false,
-                message: 'Status is required'
-            });
-        }
-
-        const deviceRef = db.collection('devices').doc(deviceId);
-        const deviceDoc = await deviceRef.get();
-
-        if (!deviceDoc.exists) {
-            return res.status(404).json({
-                success: false,
-                message: 'Device not found'
-            });
-        }
-
-        await deviceRef.update({
-            status: status,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        const mqttTopic = `spl/device/${deviceId}/settings`;
-        const mqttMessage = JSON.stringify({
-            status: status,
-            timestamp: Date.now()
-        });
-
-        mqttClient.publish(mqttTopic, mqttMessage, { retain: true });
-
-        res.json({
-            success: true,
-            message: `Device status updated to ${status}`,
-            deviceId: deviceId,
-            status: status
-        });
-
-    } catch (error) {
-        console.error('Error updating device status:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update device status',
-            error: error.message
-        });
-    }
-});
-
-// ดึงข้อมูลอุปกรณ์
 app.get('/api/devices/:deviceId', async (req, res) => {
     try {
         const { deviceId } = req.params;
-        
+
         const deviceRef = db.collection('devices').doc(deviceId);
         const deviceDoc = await deviceRef.get();
 
@@ -546,7 +576,66 @@ app.get('/api/devices/:deviceId', async (req, res) => {
     }
 });
 
-// ดึงรายการอุปกรณ์ทั้งหมด
+// เพิ่ม route สำหรับอัพเดทสถานะอุปกรณ์
+app.put('/api/devices/:deviceId/status', async (req, res) => {
+    try {
+      const { deviceId } = req.params;
+      const { status } = req.body;
+
+      console.log(`Updating device ${deviceId} status to: ${status}`); // เพิ่ม log
+
+      // ตรวจสอบว่ามี deviceId และ status
+      if (!deviceId || !status) {
+        return res.status(400).json({
+          success: false,
+          message: 'Device ID and status are required'
+        });
+      }
+
+      // อัพเดทสถานะใน Firestore
+      const deviceRef = db.collection('devices').doc(deviceId);
+      const deviceDoc = await deviceRef.get();
+
+      if (!deviceDoc.exists) {
+        return res.status(404).json({
+          success: false,
+          message: 'Device not found'
+        });
+      }
+
+      await deviceRef.update({
+        status: status,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // เพิ่มการส่ง MQTT message เพื่อแจ้งอุปกรณ์
+      const mqttTopic = `spl/device/${deviceId}/settings`;
+      const mqttMessage = JSON.stringify({
+        device_id: deviceId,
+        status: status,
+        timestamp: Date.now()
+      });
+
+      mqttClient.publish(mqttTopic, mqttMessage);
+      console.log(`Published MQTT message to ${mqttTopic}:`, mqttMessage);
+
+      res.json({
+        success: true,
+        message: 'Device status updated successfully',
+        deviceId: deviceId,
+        status: status
+      });
+
+    } catch (error) {
+      console.error('Error updating device status:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update device status',
+        error: error.message
+      });
+    }
+});
+
 app.get('/api/devices', async (req, res) => {
     try {
         const devicesRef = db.collection('devices');
@@ -575,13 +664,13 @@ app.get('/api/devices', async (req, res) => {
     }
 });
 
-// MQTT message handler
+// MQTT Message Handler - แก้ไขเพื่อลดการบันทึกซ้ำซ้อน
 mqttClient.on('message', async (topic, message) => {
     try {
         console.log(`Received MQTT message from ${topic}:`, message.toString());
-        
+
         const messageData = JSON.parse(message.toString());
-        
+
         if (topic.includes('/status')) {
             const deviceId = messageData.device_id;
             if (!deviceId) {
@@ -596,52 +685,16 @@ mqttClient.on('message', async (topic, message) => {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            console.log(`Updated device ${deviceId} status to ${messageData.status}`);
-
             const confirmTopic = `spl/device/${deviceId}/status/confirm`;
             mqttClient.publish(confirmTopic, JSON.stringify({
                 status: messageData.status,
                 timestamp: Date.now()
             }));
 
-        } else if (topic.includes('/settings/update')) {
-            const deviceId = messageData.device_id;
-            if (!deviceId) {
-                console.log('No device ID in settings update message');
-                return;
-            }
-
-            const updateData = {};
-            if (messageData.noiseThreshold !== undefined) {
-                updateData.noiseThreshold = Number(messageData.noiseThreshold);
-            }
-            if (messageData.samplingPeriod !== undefined) {
-                updateData.samplingPeriod = Number(messageData.samplingPeriod);
-            }
-            if (messageData.recordDuration !== undefined) {
-                updateData.recordDuration = Number(messageData.recordDuration);
-            }
-            if (messageData.status !== undefined) {
-                updateData.status = messageData.status;
-            }
-
-            updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
-
-            const deviceRef = db.collection('devices').doc(deviceId);
-            await deviceRef.update(updateData);
-
-            console.log(`Updated device ${deviceId} settings:`, updateData);
-
-            const confirmTopic = `spl/device/${deviceId}/settings/confirm`;
-            mqttClient.publish(confirmTopic, JSON.stringify({
-                ...updateData,
-                timestamp: Date.now()
-            }));
-
         } else if (topic.includes('/data')) {
             const deviceId = messageData.device_id;
             const macAddress = messageData.mac_address;
-            
+
             if (!deviceId || !macAddress) {
                 console.log('Missing device ID or MAC address in data message');
                 return;
@@ -650,28 +703,63 @@ mqttClient.on('message', async (topic, message) => {
             if (messageData.spl_value !== undefined) {
                 const formattedSPLValue = formatSPLValue(messageData.spl_value);
                 const timestamp = admin.firestore.Timestamp.now();
-                
-                const soundData = {
-                    deviceId: deviceId,
-                    level: formattedSPLValue,
-                    date: {
-                        _seconds: timestamp.seconds,
-                        _nanoseconds: timestamp.nanoseconds
-                    },
-                    macAddress: macAddress
-                };
-
-                const nextDocId = await getNextDocumentId('sounds');
-                const soundRef = db.collection('sounds').doc(nextDocId);
-                await soundRef.set(soundData);
-                
+            
+                // ตรวจสอบว่ามีการบันทึกข้อมูลเสียงในช่วงเวลานี้ไปแล้วหรือยัง (ช่วงเวลา ±5 วินาที)
+                const existingSoundSnapshot = await db.collection('sounds')
+                    .where('deviceId', '==', deviceId)
+                    .where('date._seconds', '>=', timestamp.seconds - 5)
+                    .where('date._seconds', '<=', timestamp.seconds + 5)
+                    .get();
+            
+                if (!existingSoundSnapshot.empty) {
+                    console.log('Sound data for this timestamp already exists. Skipping MQTT data.');
+                    return;
+                }
+            
+                // ดึงข้อมูลอุปกรณ์เพื่อดู threshold
                 const deviceRef = db.collection('devices').doc(deviceId);
-                await deviceRef.update({
-                    lastSeen: admin.firestore.FieldValue.serverTimestamp(),
-                    lastSPLValue: formattedSPLValue
-                });
+                const deviceDoc = await deviceRef.get();
                 
-                console.log(`Saved SPL data to Firebase with ID: ${nextDocId}`);
+                if (!deviceDoc.exists) {
+                    console.log('Device not found');
+                    return;
+                }
+                
+                // ดึงค่า threshold จาก device document หรือใช้ค่าเริ่มต้น (85)
+                const noiseThreshold = deviceDoc.data().noiseThreshold || 85;
+                
+                // บันทึกเฉพาะเมื่อค่า SPL ไม่เกิน threshold 
+                // (ถ้าเกิน threshold จะถูกจัดการโดยส่วน upload endpoint)
+                if (formattedSPLValue <= noiseThreshold) {
+                    console.log(`SPL value (${formattedSPLValue}) is below threshold (${noiseThreshold}). Recording basic data.`);
+                    
+                    // สร้างข้อมูลเสียงที่จะบันทึก (พื้นฐาน)
+                    const soundData = {
+                        deviceId: deviceId,
+                        level: formattedSPLValue,
+                        date: {
+                            _seconds: timestamp.seconds,
+                            _nanoseconds: timestamp.nanoseconds
+                        },
+                        macAddress: macAddress
+                    };
+                
+                    const nextDocId = await getNextDocumentId('sounds');
+                    const soundRef = db.collection('sounds').doc(nextDocId);
+                    await soundRef.set(soundData);
+                
+                    // อัพเดทข้อมูลอุปกรณ์
+                    const updateData = {
+                        lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+                        lastSPLValue: formattedSPLValue
+                    };
+                    
+                    await deviceRef.update(updateData);
+                    
+                    console.log(`Saved basic sound data with ID: ${nextDocId}`);
+                } else {
+                    console.log(`SPL value (${formattedSPLValue}) is above threshold (${noiseThreshold}). Waiting for upload endpoint to handle.`);
+                }
             }
         }
     } catch (error) {
@@ -679,16 +767,7 @@ mqttClient.on('message', async (topic, message) => {
     }
 });
 
-// MQTT subscriptions
-mqttClient.on('connect', () => {
-    console.log('Connected to MQTT broker');
-    mqttClient.subscribe('spl/device/+/data');
-    mqttClient.subscribe('spl/device/+/status');
-    mqttClient.subscribe('spl/device/+/info');
-    mqttClient.subscribe('spl/device/+/settings/update');
-});
-
-// Error handler
+// Error Handler
 app.use((err, req, res, next) => {
     console.error('Error:', err);
     if (err instanceof multer.MulterError) {
@@ -705,7 +784,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server
+// Start Server
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on all interfaces on port ${PORT}`);
