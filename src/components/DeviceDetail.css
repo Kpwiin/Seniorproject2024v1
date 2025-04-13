@@ -249,12 +249,13 @@ html, body {
   width: auto; /* Automatically adjust the width based on content */
   max-width: 3000px;
   background: linear-gradient(135deg, #2e2e2e, #1f1f1f);
-  padding: 40px;
+  padding: 35px;
   border-radius: 12px;
   border-color: #343434;
   background-clip: padding-box;
   color: #dcdcdc; /* Light text color for contrast */
   display: inline-block; /* Allow the block to wrap around the text */
+  margin-top: 30px;
 }
 
 .audio-container{

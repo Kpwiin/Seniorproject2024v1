@@ -168,13 +168,14 @@ const CurrentSoundLevel = ({ deviceId }) => {
             <span style={{ color: noiseStatus.color }}> {noiseStatus.text}</span>
           </p>
           <p className="source">
-            <strong>Noise Source:</strong>
-            <span style={{ color: noiseStatus.color }}>
-              {noiseStatus.text === "Safe" ? "Unidentified" : classification || 
-                (latestAudioDoc && latestAudioDoc.result ? latestAudioDoc.result : 'N/A')}
-            </span>
-          </p>
-          
+          <strong>Noise Source:</strong>{' '}
+          <span style={{ color: noiseStatus.color }}>
+            {noiseStatus.text === "Safe"
+              ? "Unidentified"
+              : classification || (latestAudioDoc && latestAudioDoc.result ? latestAudioDoc.result : "N/A")}
+          </span>
+        </p>
+
           {highestLevelToday !== null && (
             <p className="highest-today">
               <strong>Highest Level Today:</strong>
