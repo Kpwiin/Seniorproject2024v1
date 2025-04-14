@@ -495,15 +495,6 @@ function Navbar() {
           <span>Classification</span>
         </MenuItem>
         
-        <MenuItem 
-          href="/settings" 
-          active={currentPath === '/settings'}
-          onClick={handleMenuClick('/settings')}
-        >
-          <FaCog />
-          <span>Settings</span>
-        </MenuItem>
-         
         {role === 'admin' && (
           <MenuItem 
             href="/managedevices" 
@@ -523,6 +514,17 @@ function Navbar() {
           <FaServer />
           <span>My Devices</span>
         </MenuItem>
+
+        <MenuItem 
+          href="/settings" 
+          active={currentPath === '/settings'}
+          onClick={handleMenuClick('/settings')}
+        >
+          <FaCog />
+          <span>Settings</span>
+        </MenuItem>
+         
+      
       </Sidebar>
 
       <TopBar isSidebarOpen={isSidebarOpen}>
