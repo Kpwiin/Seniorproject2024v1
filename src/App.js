@@ -6,7 +6,7 @@ import DeviceManagement from './components/DeviceManagement';
 import DeviceSettings from './components/DeviceSettings';
 import Complaint from './components/Complaint';
 import ComplaintAdd from './components/ComplaintAdd';
-import Settings from './components/Settings';
+import Settings from './components/ProfileSettings';
 import Classification from './components/Classification';
 import Login from './components/Login';
 import Register from './components/Register';
