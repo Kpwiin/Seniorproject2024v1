@@ -17,6 +17,7 @@ export const History = ({ deviceId }) => {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedResults, setSelectedResults] = useState([]);
   const [selectedAudioUrls, setSelectedAudioUrls] = useState([]);
+  const [selectedData, setSelectedData] = useState([]);
 
   useEffect(() => {
     const fetchHistoryData = async () => {
@@ -40,6 +41,7 @@ export const History = ({ deviceId }) => {
                 levels: [],
                 timestamps: [],
                 results: [],
+                
               });
             }
 
@@ -50,6 +52,12 @@ export const History = ({ deviceId }) => {
             dayDataMap.get(dateKey).results.push(result);
             dayDataMap.get(dateKey).audioUrls = dayDataMap.get(dateKey).audioUrls || [];
             dayDataMap.get(dateKey).audioUrls.push(audioUrl);
+            dayDataMap.get(dateKey).verify = dayDataMap.get(dateKey).verify || [];
+            dayDataMap.get(dateKey).verify.push(docData.verify || false);
+
+            dayDataMap.get(dateKey).verifierName = dayDataMap.get(dateKey).verifierName || [];
+            dayDataMap.get(dateKey).verifierName.push(docData.verifierName || '');
+
           }
         });
 
@@ -64,11 +72,15 @@ export const History = ({ deviceId }) => {
             timestamps: value.timestamps,
             results: value.results,
             audioUrls: value.audioUrls,
+            verify: value.verify,
+            verifierName: value.verifierName,
+
           });
         });
 
         setHistoryData(formattedData);
-        setDisplayedData(formattedData.slice(0, loadCount)); // Show the first 7 items initially
+        setDisplayedData(formattedData.slice(0, loadCount)); 
+        
       } catch (error) {
         console.error('Error fetching history data: ', error);
       }
@@ -93,7 +105,7 @@ export const History = ({ deviceId }) => {
   }, [historyData, selectedMonth, loadCount]);
 
   const loadMoreData = () => {
-    setLoadCount(loadCount + 7); // Increment the count by 7 each time
+    setLoadCount(loadCount + 7); 
   };
 
   const getChartData = () => {
@@ -267,26 +279,43 @@ export const History = ({ deviceId }) => {
             }`}
             
             onClick={() => {
-              setSelectedDate(item.date);
-              const sortedData = item.timestamps
-                .map((timestamp, index) => ({
-                  timestamp,
-                  level: item.noiseLevels[index],
-                  result: item.results[index],
-                  audioUrl: item.audioUrls[index],
-                }))
-                .sort((a, b) => a.timestamp - b.timestamp);
-              
-              const sortedTimestamps = sortedData.map((data) => data.timestamp);
-              const sortedLevels = sortedData.map((data) => data.level);
-              const sortedResults = sortedData.map((data) => data.result);
-              const sortedAudioUrls = sortedData.map((data) => data.audioUrl);
-              setSelectedAudioUrls(sortedAudioUrls);
-              setSelectedLevels(sortedLevels);
-              setSelectedTimestamps(sortedTimestamps);
-              setSelectedIndex(index);
-              setSelectedResults(sortedResults);
+              if (selectedIndex === index) {
+                // Toggle off if the same item is clicked
+                setSelectedIndex(null);
+                setSelectedLevels([]);
+                setSelectedTimestamps([]);
+                setSelectedResults([]);
+                setSelectedAudioUrls([]);
+                setSelectedDate(null);
+                setSelectedData([]);
+              } else {
+                // Show the clicked item
+                setSelectedDate(item.date);
+                const sortedData = item.timestamps
+                  .map((timestamp, index) => ({
+                    timestamp,
+                    level: item.noiseLevels[index],
+                    result: item.results[index],
+                    audioUrl: item.audioUrls[index],
+                    verify: item.verify?.[index],
+                    verifierName: item.verifierName?.[index]
+                  }))
+                  .sort((a, b) => a.timestamp - b.timestamp);
+            
+                const sortedTimestamps = sortedData.map((data) => data.timestamp);
+                const sortedLevels = sortedData.map((data) => data.level);
+                const sortedResults = sortedData.map((data) => data.result);
+                const sortedAudioUrls = sortedData.map((data) => data.audioUrl);
+                
+                setSelectedAudioUrls(sortedAudioUrls);
+                setSelectedLevels(sortedLevels);
+                setSelectedTimestamps(sortedTimestamps);
+                setSelectedIndex(index);
+                setSelectedResults(sortedResults);
+                setSelectedData(sortedData);
+              }
             }}
+            
             style={{ cursor: 'pointer' }}
           >
             <span>
@@ -355,9 +384,18 @@ export const History = ({ deviceId }) => {
 
                             {/* Second Block: Result and Audio */}
                             <div style={{ marginTop: '2px' }}>
-                              <strong>Source: {selectedResults[idx] || 'N/A'}</strong>
+                              <strong>
+                                Source: {selectedResults[idx] || 'N/A'}{' '}
+                                {selectedData[idx]?.verify && (
+                                  <span
+                                    title={`Verified by: ${selectedData[idx].verifierName}`}
+                                    style={{ color: 'green', marginLeft: '5px', cursor: 'help' }}
+                                  >
+                                    ✓
+                                  </span>
+                                )}
+                              </strong>
                             </div>
-                             
                               {audioUrl ? (
                                 <div style={{ marginTop: '10px' }}>
                                   <audio controls style={{ width: '300px', height: '30px' }}>

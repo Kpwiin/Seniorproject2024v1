@@ -487,7 +487,7 @@ export const LineGraph = ({ deviceId }) => {
           color: '#FFFFFF',
         },
         // Adjusted suggestedMax calculation
-        //suggestedMax: timeRange === 'last24hours' ? Math.max(...(filteredData.datasets[0]?.data || [0])) + 20 : Math.max(...(filteredData.datasets[0]?.data || [0])) + 10,
+        suggestedMax: timeRange === 'last24hours' ? Math.max(...(filteredData.datasets[0]?.data || [0])) + 20 : Math.max(...(filteredData.datasets[0]?.data || [0])) + 10,
       },
     },
   };
