@@ -451,7 +451,7 @@ function EditDevice() {
         </FormGroup>
 
         <FormGroup>
-          <Label>Record Duration (min)</Label>
+          <Label>Record Duration (sec)</Label>
           <Input
             type="number"
             name="recordDuration"
