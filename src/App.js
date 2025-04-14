@@ -30,11 +30,11 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
-            {/* หน้าที่ไม่ต้องการ Navbar */}
+            {/* No Navbar */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* หน้าที่ต้องการ Navbar */}
+            {/* With Navbar */}
             <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
             <Route path="/device/:id/settings" element={<Layout><DeviceSettings /></Layout>} />
             <Route path="/complaints" element={<Layout><Complaint /></Layout>} />
@@ -45,7 +45,7 @@ function App() {
             <Route path="/device/:id/edit" element={<Layout><EditDeviceSettings /></Layout>} />
             <Route path="/complaints/:deviceName" element={<Layout><Complaint /></Layout>} />
             <Route path="/mydevices" element={<Layout><MyDevice /></Layout>} />
-            {/* หน้าที่ต้องเป็น Admin เท่านั้น */}
+            {/* Admin only */}
             <Route path="/managedevices" element={<AdminRoute><Layout><DeviceManagement /></Layout></AdminRoute>} />
           </Routes>
         </div>
@@ -53,5 +53,6 @@ function App() {
     </AuthProvider>
   );
 }
+
 
 export default App;

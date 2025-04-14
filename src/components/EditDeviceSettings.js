@@ -265,7 +265,7 @@ const updateDeviceSettings = async (deviceId, settings) => {
   }
 };
 // Main Component
-function EditDevice() {
+function EditDeviceSettings() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -498,4 +498,4 @@ function EditDevice() {
   );
 }
 
-export default EditDevice;
+export default EditDeviceSettings;
