@@ -596,7 +596,7 @@ function DeviceSettings() {
 
           <SettingGroup>
             <SettingLabel>Record duration</SettingLabel>
-            <Value>{deviceData.recordDuration} min</Value>
+            <Value>{deviceData.recordDuration} sec</Value>
           </SettingGroup>
 
           <ButtonContainer>
