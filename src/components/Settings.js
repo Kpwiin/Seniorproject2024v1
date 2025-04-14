@@ -4,7 +4,7 @@ import { FiUser, FiBell, FiLogOut, FiCamera, FiChevronRight, FiMail, FiLock, FiV
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
 import { updateProfile, updateEmail, updatePassword, reauthenticateWithCredential, 
-  EmailAuthProvider, sendEmailVerification } from "firebase/auth";
+EmailAuthProvider, sendEmailVerification } from "firebase/auth";
 import { auth, db } from "../firebase";
 
 const Container = styled.div`
