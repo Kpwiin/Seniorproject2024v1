@@ -670,27 +670,34 @@ mqttClient.on('message', async (topic, message) => {
         console.log(`Received MQTT message from ${topic}:`, message.toString());
 
         const messageData = JSON.parse(message.toString());
-
         if (topic.includes('/status')) {
             const deviceId = messageData.device_id;
             if (!deviceId) {
                 console.log('No device ID in status message');
                 return;
             }
-
+        
+            // เพิ่มการตรวจสอบค่า status ที่เป็น "Active"
+            const status = messageData.status;
+            
             const deviceRef = db.collection('devices').doc(deviceId);
             await deviceRef.update({
-                status: messageData.status,
+                status: status, // ใช้ค่า status ที่ได้รับจาก MQTT โดยตรง
                 lastSeen: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-
+        
+            // อาจเพิ่มการบันทึกข้อมูลเพิ่มเติมถ้าสถานะเป็น "Active"
+            if (status === "Active" && messageData.spl_value) {
+                console.log(`Device ${deviceId} is recording with SPL value: ${messageData.spl_value}`);
+                // อาจเพิ่มการบันทึกข้อมูลเพิ่มเติมตรงนี้
+            }
+        
             const confirmTopic = `spl/device/${deviceId}/status/confirm`;
             mqttClient.publish(confirmTopic, JSON.stringify({
-                status: messageData.status,
+                status: status,
                 timestamp: Date.now()
             }));
-
         } else if (topic.includes('/data')) {
             const deviceId = messageData.device_id;
             const macAddress = messageData.mac_address;
