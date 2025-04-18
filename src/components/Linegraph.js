@@ -390,7 +390,7 @@ export const LineGraph = ({ deviceId }) => {
             borderWidth: 1,
           },
           // Add PeakLevelLabel and CurrentLevelLabel only if the timeRange is 'last24hours'
-          ...(timeRange === 'last24hours' && {
+        /*  ...(timeRange === 'last24hours' && {
             PeakLevelLabel: {
               type: 'label',
               content: [`Peak Level: ${Math.max(...(filteredData.datasets[0]?.data || []))} dB`],
@@ -411,7 +411,7 @@ export const LineGraph = ({ deviceId }) => {
                 left: 12, // Enhanced padding for better content balance
               },
               xAdjust: -150, // Adjust for a more centered position
-              yAdjust: -200,
+              yAdjust: -180,
             },
             
             CurrentLevelLabel: {
@@ -443,9 +443,9 @@ export const LineGraph = ({ deviceId }) => {
                 left: 12, // Enhanced padding for better content balance
               },
               xAdjust: 110, // Adjust for a more centered position
-              yAdjust: -200,
+              yAdjust: -180,
             },
-          }),
+          }),*/
         },
       },
     },
@@ -487,7 +487,7 @@ export const LineGraph = ({ deviceId }) => {
           color: '#FFFFFF',
         },
         // Adjusted suggestedMax calculation
-        suggestedMax: timeRange === 'last24hours' ? Math.max(...(filteredData.datasets[0]?.data || [0])) + 20 : Math.max(...(filteredData.datasets[0]?.data || [0])) + 10,
+        //suggestedMax: timeRange === 'last24hours' ? Math.max(...(filteredData.datasets[0]?.data || [0])) + 20 : Math.max(...(filteredData.datasets[0]?.data || [0])) + 10,
       },
     },
   };

@@ -10,6 +10,7 @@ const CurrentSoundLevel = ({ deviceId }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioError, setAudioError] = useState(null);
   const [latestAudioDoc, setLatestAudioDoc] = useState(null);
+  const [currentTimestamp, setCurrentTimestamp] = useState(null);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -57,7 +58,11 @@ const CurrentSoundLevel = ({ deviceId }) => {
         console.log('Latest document data:', docData);
         
         setCurrentLevel(docData.level);
-        
+
+        if (docData.date && docData.date._seconds) {
+          const date = new Date(docData.date._seconds * 1000);
+          setCurrentTimestamp(date.toLocaleString()); // or use a more custom format
+        }
         // ถ้าเอกสารล่าสุดมีข้อมูล result ให้ใช้เลย
         if (docData.result) {
           setClassification(docData.result);
@@ -159,16 +164,27 @@ const CurrentSoundLevel = ({ deviceId }) => {
     <div className="current-sound-level">
       {currentLevel !== null ? (
         <div className="current-container">
-          <p className="current">
-            <strong>Current Sound Level:</strong>
-            <span style={{ color: noiseStatus.color }}> {currentLevel} dB</span>
-          </p>
+        <p className="current">
+          <strong>Current Sound Level:</strong>
+          <br />
+          <span style={{ color: noiseStatus.color }}>
+            {' '}{currentLevel} dB
+          </span>
+          <br />
+          {currentTimestamp && (
+            <span style={{ color: '#666' }}>
+              (Last update: {currentTimestamp})
+            </span>
+          )}
+        </p>
           <p className="status">
             <strong>Status:</strong>
+            <br />
             <span style={{ color: noiseStatus.color }}> {noiseStatus.text}</span>
           </p>
           <p className="source">
           <strong>Noise Source:</strong>{' '}
+          <br />
           <span style={{ color: noiseStatus.color }}>
             {noiseStatus.text === "Safe"
               ? "Unidentified"
@@ -179,6 +195,7 @@ const CurrentSoundLevel = ({ deviceId }) => {
           {highestLevelToday !== null && (
             <p className="highest-today">
               <strong>Highest Level Today:</strong>
+              <br />
               <span style={{ color: noiseStatus.color }}> {highestLevelToday} dB</span>
             </p>
           )}
