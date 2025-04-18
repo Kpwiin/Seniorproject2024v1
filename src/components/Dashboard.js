@@ -1,4 +1,3 @@
-// src/components/Dashboard.js
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
@@ -262,9 +261,7 @@ function Dashboard() {
 
       // ถ้าไม่มีข้อมูลใน Firestore ให้ใช้ข้อมูลตัวอย่าง
       if (devicesList.length === 0) {
-        console.log("No devices found in Firestore, using sample data");
-        const sampleDevices = getSampleDevices();
-        setDevices(sampleDevices);
+        setDevices([]);
         setIsLoading(false);
         return;
       }
@@ -285,7 +282,7 @@ function Dashboard() {
             // หาข้อมูลล่าสุดด้วยการเรียงลำดับหลังจากดึงข้อมูลมาแล้ว
             let latestSound = null;
             let latestTimestamp = 0;
-
+           
             soundSnapshot.forEach(doc => {
               const data = doc.data();
               console.log(`Sound data for doc ${doc.id}:`, data);
@@ -332,6 +329,18 @@ function Dashboard() {
 
             // ตรวจสอบค่า level ในทุกรูปแบบที่เป็นไปได้
             let soundLevel = 0;
+            let lastUpdate = null;
+
+            if (latestSound?.timestamp?.seconds) {
+              lastUpdate = new Date(latestSound.timestamp.seconds * 1000);
+            } else if (latestSound?.timestamp?._seconds) {
+              lastUpdate = new Date(latestSound.timestamp._seconds * 1000);
+            } else if (latestSound?.date?.seconds) {
+              lastUpdate = new Date(latestSound.date.seconds * 1000);
+            } else if (latestSound?.date?._seconds) {
+              lastUpdate = new Date(latestSound.date._seconds * 1000);
+            }
+
             if (latestSound) {
               if (typeof latestSound.level === 'number') {
                 console.log(`Found level as number: ${latestSound.level}`);
@@ -383,7 +392,8 @@ function Dashboard() {
             return {
               ...device,
               soundLevel: soundLevel,
-              source: source
+              source: source,
+              lastUpdate: lastUpdate
             };
           } catch (err) {
             console.error(`Error fetching sound data for device ${device.deviceId}:`, err);
@@ -402,10 +412,6 @@ function Dashboard() {
 
     } catch (err) {
       console.error('Error fetching data:', err);
-      // ใช้ข้อมูลตัวอย่างในกรณีที่มีข้อผิดพลาด
-      const sampleDevices = getSampleDevices();
-      setDevices(sampleDevices);
-      setIsLoading(false);
     }
   };
 
@@ -415,43 +421,6 @@ function Dashboard() {
     const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
   }, []);
-
-  // ฟังก์ชันสร้างข้อมูลตัวอย่าง
-  const getSampleDevices = () => {
-    return [
-      {
-        deviceId: "device1",
-        deviceName: "Sample Device 1",
-        latitude: 13.794185,
-        longitude: 100.325802,
-        location: "Sample Location 1",
-        soundLevel: 65,
-        status: "Active",  // ใช้ตัวพิมพ์ใหญ่ตามที่เก็บใน Firebase
-        source: "Traffic",
-        noiseThreshold: 80
-      },
-      {
-        deviceId: "device2",
-        deviceName: "Sample Device 2",
-        latitude: 13.795185,
-        longitude: 100.326802,
-        location: "Sample Location 2",
-        soundLevel: 75,
-        status: "Active",  // ใช้ตัวพิมพ์ใหญ่ตามที่เก็บใน Firebase
-        source: "Construction",
-        noiseThreshold: 80
-      },
-      {
-        deviceId: "device3",
-        deviceName: "Sample Device 3",
-        latitude: 13.793185,
-        longitude: 100.324802,
-        location: "Sample Location 3",
-        status: "Inactive",  // ใช้ตัวพิมพ์ใหญ่ตามที่เก็บใน Firebase
-        noiseThreshold: 80
-      }
-    ];
-  };
 
   const handleMouseMove = (e) => {
     setMousePos({ x: e.clientX + 10, y: e.clientY + 10 });
@@ -571,10 +540,16 @@ function Dashboard() {
                 </div>
                 {selectedDevice.status !== 'Inactive' && (
                   <>
-                    <div>
+                   <div>
                       <strong>Sound Level:</strong> 
                       <span>{selectedDevice.soundLevel} dB</span>
                     </div>
+                    {selectedDevice.lastUpdate && (
+                      <div>
+                        <strong>Last update:</strong>{' '}
+                        <span>{selectedDevice.lastUpdate.toLocaleString()}</span>
+                      </div>
+                    )}
                     <div>
                       <strong>Noise Threshold:</strong> 
                       <span>{selectedDevice.noiseThreshold} dB</span>

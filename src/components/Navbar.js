@@ -254,14 +254,15 @@ const NotificationBadge = styled.div`
     }
   }
 `;
+
 const NotificationModal = styled.div`
   position: absolute;
   top: 70px;
-  right: 30px;
+  right: 90px;
   background-color: #1a1a1a;
   padding: 15px;
   border-radius: 8px;
-  width: 300px;
+  width: 600px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   z-index: 1001;
 `;
@@ -409,17 +410,16 @@ function Navbar() {
           return {
             deviceName: device.deviceName || device.id,
             level: latestSound.level,
+            result: latestSound.result || 'unknown', 
           };
         })
       );
   
-      // Filter out any null values from the notificationsData
       const validNotifications = notificationsData.filter(n => n !== null);
-  
-      // Update state with valid notifications
+ 
       console.log("Final Notifications:", validNotifications);
       setNotifications(validNotifications);
-      setHasNotifications(validNotifications.length > 0); // Update hasNotifications based on result
+      setHasNotifications(validNotifications.length > 0); 
     } catch (error) {
       console.error("Error fetching notifications:", error);
     }
@@ -431,7 +431,7 @@ function Navbar() {
       setModalPosition({ top: rect.bottom + 20, left: rect.left - 150 });
     }
     if (notifications.length > 0) {
-      setHasNotifications(false); // Reset notification badge once viewed
+      setHasNotifications(false); 
     }
     setShowNotifications(!showNotifications);
   };
@@ -546,12 +546,12 @@ function Navbar() {
           )}
           
           {showNotifications && (
-            <NotificationModal style={{ top: modalPosition.top, left: modalPosition.left }}>
+            <NotificationModal style={{ top: modalPosition.top}}>
               <ModalTitle>Notifications</ModalTitle>
               {notifications.length > 0 ? (
                 notifications.map((notification, index) => (
                   <DeviceNotification key={index}>
-                    <strong>{notification.deviceName}</strong> detected noise at {notification.level} dB
+                    <strong>{notification.deviceName}</strong> detected noise: {notification.level.toFixed(2)} dB (Source: {notification.result || 'Unknown'})<br/>
                   </DeviceNotification>
                 ))
               ) : (
