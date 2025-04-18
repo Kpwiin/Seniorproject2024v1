@@ -5,8 +5,6 @@ import { db, auth } from '../firebase';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
-import mqtt from 'mqtt';
-import { getStorage, ref as storageRef, uploadBytes } from 'firebase/storage';
 
 const Container = styled.div`
   background-color: #121212;
@@ -158,23 +156,6 @@ const MapContainer = styled.div`
   border: 1px solid #333;
 `;
 
-const SmallText = styled.small`
-  color: #808080;
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-`;
-
-const NotificationBox = styled.div`
-  background-color: #2D2D2D;
-  color: #FFFFFF;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  border-left: 4px solid #4CAF50;
-  text-align: center;
-`;
-
 const SuccessNotification = styled.div`
   position: fixed;
   top: 20px;
@@ -215,9 +196,7 @@ function AddDevice() {
   const [user, setUser] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [deviceDetails, setDeviceDetails] = useState(null);
 
-  // ตรวจสอบการล็อกอิน
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -228,24 +207,16 @@ function AddDevice() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // ฟังก์ชันสร้างที่เก็บไฟล์เสียง
-  const createAudioStorage = async (deviceId) => {
-    try {
-      const storage = getStorage();
-      
-      // สร้างไฟล์ placeholder เพื่อสร้างโฟลเดอร์
-      const emptyBlob = new Blob([''], { type: 'text/plain' });
-      const audioFolderRef = storageRef(storage, `audio/${deviceId}/.placeholder`);
-      
-      // อัปโหลดไฟล์ placeholder
-      await uploadBytes(audioFolderRef, emptyBlob);
-      console.log(`Created audio storage folder for device: ${deviceId}`);
-      
-      return true;
-    } catch (error) {
-      console.error('Error creating audio storage:', error);
-      return false;
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.deviceName.trim()) {
+      newErrors.deviceName = 'Device name is required';
     }
+    if (!formData.location) {
+      newErrors.location = 'Please select location on map';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const getAddressFromLatLng = async (lat, lng) => {
@@ -283,28 +254,11 @@ function AddDevice() {
     }
   };
 
-  const handleMapClick = async (e) => {
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    
-    setSelectedLocation({ lat, lng });
-    const address = await getAddressFromLatLng(lat, lng);
-    
-    setFormData(prev => ({
-      ...prev,
-      latitude: lat,
-      longitude: lng,
-      location: address
-    }));
-    setShowInfoWindow(true);
-  };
-
   const searchLocation = async () => {
     if (!searchQuery.trim()) return;
 
     try {
       const geocoder = new window.google.maps.Geocoder();
-      
       geocoder.geocode(
         { 
           address: searchQuery,
@@ -379,62 +333,24 @@ function AddDevice() {
     }
   };
 
+  const handleMapClick = async (e) => {
+    const lat = e.latLng.lat();
+    const lng = e.latLng.lng();
+    
+    setSelectedLocation({ lat, lng });
+    const address = await getAddressFromLatLng(lat, lng);
+    
+    setFormData(prev => ({
+      ...prev,
+      latitude: lat,
+      longitude: lng,
+      location: address
+    }));
+    setShowInfoWindow(true);
+  };
+
   const handleMapLoad = (map) => {
     setMapInstance(map);
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.deviceName.trim()) {
-      newErrors.deviceName = 'Device name is required';
-    }
-    if (!formData.location) {
-      newErrors.location = 'Please select location on map';
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // ฟังก์ชันส่งข้อมูลไปยัง ESP32 ผ่าน MQTT
-  const sendDataToESP32 = async (deviceId, token) => {
-    try {
-      // เชื่อมต่อกับ MQTT broker
-      const client = mqtt.connect('mqtt://test.mosquitto.org:1883');
-      
-      return new Promise((resolve, reject) => {
-        client.on('connect', () => {
-          console.log('Connected to MQTT broker');
-          
-          // สร้าง topic สำหรับส่งข้อมูลไปยัง ESP32
-          const topic = `spl/registration/broadcast`;
-          
-          // สร้างข้อมูลที่จะส่ง
-          const message = JSON.stringify({
-            deviceId: deviceId,
-            token: token,
-            status: 'registered',
-            noiseThreshold: 85.0,
-            samplingPeriod: 1,
-            recordDuration: 10
-          });
-          
-          // ส่งข้อมูลไปยัง ESP32
-          client.publish(topic, message, () => {
-            console.log(`Registration data sent to ${topic}`);
-            client.end();
-            resolve(true);
-          });
-        });
-        
-        client.on('error', (err) => {
-          console.error('MQTT error:', err);
-          reject(err);
-        });
-      });
-    } catch (mqttError) {
-      console.error('Error connecting to MQTT:', mqttError);
-      return false;
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -448,13 +364,17 @@ function AddDevice() {
 
     setIsLoading(true);
     try {
+      console.log('Starting device addition process...');
+      
       // Get current device count for deviceId
       const querySnapshot = await getDocs(collection(db, 'devices'));
       const deviceCount = querySnapshot.size;
       const newDeviceId = String(deviceCount + 1);
+      console.log(`Generated new device ID: ${newDeviceId}`);
       
       // Generate random token
       const newToken = `TKN-${Math.random().toString(36).substr(2, 16).toUpperCase()}`;
+      console.log(`Generated new token: ${newToken}`);
 
       const deviceData = {
         deviceName: formData.deviceName,
@@ -467,71 +387,30 @@ function AddDevice() {
         createdAt: new Date(),
         status: 'Inactive',
         userId: user.uid,
-        // เพิ่มข้อมูลผู้เพิ่มอุปกรณ์
         addby: user.displayName || user.email,
         userEmail: user.email,
         noiseThreshold: 85.0,
         samplingPeriod: 1,
-        recordDuration: 10,
-        audioStorage: {
-          path: `audio/${newDeviceId}`,
-          created: new Date()
-        }
+        recordDuration: 10
       };
 
-      // หา document ID ล่าสุด
-      const devicesRef = collection(db, 'devices');
-      const docsSnapshot = await getDocs(devicesRef);
-      
-      let maxId = 0;
-      docsSnapshot.forEach((doc) => {
-        // พยายามแปลง ID เป็นตัวเลข
-        const docId = parseInt(doc.id);
-        if (!isNaN(docId) && docId > maxId) {
-          maxId = docId;
-        }
-      });
-      
-      // สร้าง document ID ใหม่ (เริ่มจาก 1 ถ้าไม่มีเอกสารใดๆ)
-      let newDocId;
-      if (maxId < 0) {
-        // ถ้ายังไม่มีเอกสารใดๆ ให้เริ่มที่ 1
-        newDocId = "1";
-      } else {
-        // ถ้ามีเอกสารอยู่แล้ว ให้เพิ่มขึ้นอีก 1
-        newDocId = String(maxId + 1);
-      }
-      
-      // บันทึกลง Firestore ด้วย document ID ที่กำหนดเอง
-      await setDoc(doc(db, 'devices', newDocId), deviceData);
-      
-      // สร้างที่เก็บไฟล์เสียง
-      await createAudioStorage(newDeviceId);
-      
-      // ส่งข้อมูลไปยัง ESP32
-      await sendDataToESP32(newDeviceId, newToken);
-      
-      // เก็บข้อมูลอุปกรณ์เพื่อแสดงในการแจ้งเตือน
-      setDeviceDetails({
-        deviceId: newDeviceId,
-        token: newToken,
-        name: formData.deviceName
-      });
-      
-      // แสดงการแจ้งเตือนความสำเร็จ
+      // Save device data to Firestore
+      console.log('Saving device data to Firestore...');
+      await setDoc(doc(db, 'devices', newDeviceId), deviceData);
+      console.log('Device data saved successfully.');
+
+      // Update UI with success message
       setSuccessMessage(`Device "${formData.deviceName}" added successfully!`);
       setShowSuccess(true);
-      
-      // ซ่อนการแจ้งเตือนหลังจาก 5 วินาที
-      setTimeout(() => {
-        setShowSuccess(false);
-        navigate(`/device/${newDocId}/settings`);
-      }, 5000);
+
+      // Navigate to the next page
+      navigate(`/device/${newDeviceId}/settings`);
     } catch (error) {
       console.error('Error adding device:', error);
-      alert('Error adding device');
+      alert(`Error adding device: ${error.message}`);
     } finally {
       setIsLoading(false);
+      console.log('Device addition process completed.');
     }
   };
 
@@ -542,35 +421,23 @@ function AddDevice() {
           <div>Adding device...</div>
         </LoadingOverlay>
       )}
-      
       {showSuccess && (
         <SuccessNotification>
-          <h3 style={{ margin: '0 0 10px 0' }}>{successMessage}</h3>
-          {deviceDetails && (
-            <div>
-              <p style={{ margin: '5px 0' }}>Device ID: {deviceDetails.deviceId}</p>
-              <p style={{ margin: '5px 0' }}>Token: {deviceDetails.token}</p>
-              <p style={{ margin: '10px 0 0 0', fontSize: '0.9rem' }}>Your ESP32 should now display these details.</p>
-              <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem' }}>Redirecting to device settings...</p>
-            </div>
-          )}
+          <h3>{successMessage}</h3>
         </SuccessNotification>
       )}
-
       <Title>Add Device</Title>
-      
       <FormContainer onSubmit={handleSubmit}>
         <FormGroup>
           <Label>Device Name</Label>
           <Input
             type="text"
             value={formData.deviceName}
-            onChange={(e) => setFormData(prev => ({ ...prev, deviceName: e.target.value }))}
+            onChange={(e) => setFormData((prev) => ({ ...prev, deviceName: e.target.value }))}
             placeholder="Enter device name"
           />
           {errors.deviceName && <ErrorMessage>{errors.deviceName}</ErrorMessage>}
         </FormGroup>
-
         <FormGroup>
           <Label>Location</Label>
           <Input
@@ -590,7 +457,6 @@ function AddDevice() {
           </LocationButton>
           {errors.location && <ErrorMessage>{errors.location}</ErrorMessage>}
         </FormGroup>
-        
         <FormGroup>
           <Label>Select Location on Map</Label>
           <LocationButton type="button" onClick={getCurrentLocation}>
@@ -635,24 +501,11 @@ function AddDevice() {
             </LoadScript>
           </MapContainer>
         </FormGroup>
-
-        <FormGroup>
-          <Label>Audio Storage</Label>
-          <SmallText>
-            A storage folder for .wav audio files will be automatically created for this device.
-            The ESP32 will be able to upload audio recordings to this storage.
-          </SmallText>
-        </FormGroup>
-
         <ButtonContainer>
           <Button type="button" onClick={() => navigate('/managedevices')}>
             Back
           </Button>
-          <Button 
-            type="submit" 
-            disabled={isLoading}
-            style={{ opacity: isLoading ? 0.7 : 1 }}
-          >
+          <Button type="submit" disabled={isLoading}>
             {isLoading ? 'Adding...' : 'Add'}
           </Button>
         </ButtonContainer>

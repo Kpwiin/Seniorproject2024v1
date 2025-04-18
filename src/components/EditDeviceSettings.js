@@ -460,7 +460,7 @@ function EditDeviceSettings() {
             onChange={handleInputChange}
             required
             min="1"
-            max="10"
+            max="60"
           />
           <small style={{ color: '#999', marginTop: '0.5rem', display: 'block' }}>
             How long the device records when triggered
